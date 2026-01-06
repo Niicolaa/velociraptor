@@ -1,22 +1,24 @@
-# Only trigger when a PR is committed.
 name: Linux Build Musl Static
+#on: [pull_request]
 on:
   pull_request:
     types: [closed]
+  workflow_dispatch:
 
 jobs:
   build:
-    if: github.event.pull_request.merged
+    # Only trigger when a PR is committed or manually triggered.
+    if: github.event.pull_request.merged || github.event_name == 'workflow_dispatch'
     name: Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
 
     - name: Check out code into the Go module directory
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-    - uses: actions/setup-go@v4
+    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
       with:
-        go-version: '^1.23'
+        go-version: '^1.25'
 
     - run: go version
 
@@ -24,7 +26,7 @@ jobs:
       run: |
         go get -v -t -d ./...
         sudo apt-get update
-        sudo apt-get install -y zip build-essential pkg-config libssl-dev  gcc-aarch64-linux-gnu
+        sudo apt-get install -y zip build-essential pkg-config libssl-dev gcc-aarch64-linux-gnu
 
     - name: Install Musl
       run: |
@@ -36,7 +38,7 @@ jobs:
         cd ..
 
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
       with:
         node-version: 20
 
@@ -53,12 +55,12 @@ jobs:
         export PATH=$PATH:~/go/bin/:/usr/local/musl/bin
         go run make.go -v UpdateDependentTools
         go run make.go -v LinuxMusl
+        # go run make.go -v LinuxMuslDebug
         go run make.go -v Linux
         go run make.go -v LinuxArm64
-        # go run make.go -v LinuxMuslDebug
 
     - name: StoreBinaries
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
       with:
         name: Binaries
         path: output
