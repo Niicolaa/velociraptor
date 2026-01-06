@@ -183,6 +183,7 @@ func _upload_rows(
 			Transport: &http.Transport{
 				Proxy:           networking.GetProxy(),
 				TLSClientConfig: tlsConfig,
+				IdleConnTimeout: 30 * time.Second,    // Close before proxy/fw timeout
 			},
 		}, // Optional HTTP Client objects
 		arg.URL,
