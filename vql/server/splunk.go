@@ -343,30 +343,6 @@ func send_to_splunk(
 	}
 }
 
-func (self _SplunkPlugin) maybeForceSecrets(
-	ctx context.Context, scope vfilter.Scope, arg *_SplunkPluginArgs) error {
-
-	// Not running on the server, secrets dont work.
-	config_obj, ok := vql_subsystem.GetServerConfig(scope)
-	if !ok {
-		return nil
-	}
-
-	if config_obj.Security == nil {
-		return nil
-	}
-
-	if !config_obj.Security.VqlMustUseSecrets {
-		return nil
-	}
-
-	// If an explicit secret is defined let it filter the URLs.
-	if arg.Secret != "" {
-		return nil
-	}
-
-	return utils.SecretsEnforced
-}
 
 func mergeSecretSplunk(ctx context.Context, scope vfilter.Scope, arg *_SplunkPluginArgs) error {
 	config_obj, ok := vql_subsystem.GetServerConfig(scope)
