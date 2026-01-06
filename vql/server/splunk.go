@@ -60,6 +60,8 @@ type _SplunkPluginArgs struct {
 	TimestampField string              `vfilter:"optional,field=timestamp_field,doc=Field to use as event timestamp."`
 	HostnameField  string              `vfilter:"optional,field=hostname_field,doc=Field to use as event hostname. Overrides hostname parameter."`
 	Secret         string              `vfilter:"optional,field=secret,doc=Alternatively use a secret from the secrets service. Secret must be of type 'Splunk'"`
+	MaxRetries     int64               `vfilter:"optional,field=max_retries,doc=Maximum number of retries for failed uploads (default: 3)."`
+	RetryWait      int64               `vfilter:"optional,field=retry_wait,doc=Wait time in seconds between retries (default: 2)."`
 }
 
 type _SplunkPlugin struct{}
@@ -128,6 +130,14 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 
 		if len(arg.Source) == 0 {
 			arg.Source = "velociraptor"
+		}
+
+		if arg.MaxRetries == 0 {
+			arg.MaxRetries = 3
+		}
+
+		if arg.RetryWait == 0 {
+			arg.RetryWait = 2
 		}
 
 		config_obj, _ := artifacts.GetConfig(scope)
@@ -302,22 +312,41 @@ func send_to_splunk(
 		}
 	}
 
-	err := client.LogEvents(events)
+	// Attempt to send events with retry logic
+	var err error
+	for attempt := int64(0); attempt <= arg.MaxRetries; attempt++ {
+		err = client.LogEvents(events)
+		
+		if err == nil {
+			// Success
+			select {
+			case <-ctx.Done():
+				return
+			case output_chan <- ordereddict.NewDict().
+				Set("Response", len(buf)):
+			}
+			return
+		}
+		
+		// If this wasn't the last attempt, wait before retrying
+		if attempt < arg.MaxRetries {
+			scope.Log("splunk_upload: attempt %d failed: %v, retrying...", attempt+1, err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Duration(arg.RetryWait) * time.Second):
+				// Continue to next retry
+			}
+		}
+	}
 
-	if err != nil {
-		select {
-		case <-ctx.Done():
-			return
-		case output_chan <- ordereddict.NewDict().
-			Set("Response", err.Error()):
-		}
-	} else {
-		select {
-		case <-ctx.Done():
-			return
-		case output_chan <- ordereddict.NewDict().
-			Set("Response", len(buf)):
-		}
+	// All retries exhausted
+	scope.Log("ERROR:splunk_upload: all %d attempts failed: %v", arg.MaxRetries+1, err)
+	select {
+	case <-ctx.Done():
+		return
+	case output_chan <- ordereddict.NewDict().
+		Set("Response", err.Error()):
 	}
 }
 
