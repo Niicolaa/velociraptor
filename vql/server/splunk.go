@@ -1,6 +1,6 @@
 /*
    Velociraptor - Dig Deeper
-   Copyright (C) 2019-2024 Rapid7 Inc.
+   Copyright (C) 2019-2025 Rapid7 Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published
@@ -35,6 +35,7 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services"
+	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/functions"
@@ -46,9 +47,9 @@ import (
 type _SplunkPluginArgs struct {
 	Query          vfilter.StoredQuery `vfilter:"required,field=query,doc=Source for rows to upload."`
 	Threads        int64               `vfilter:"optional,field=threads,doc=How many threads to use."`
-	URL            string              `vfilter:"required,field=url,doc=The Splunk Event Collector URL."`
+	URL            string              `vfilter:"optional,field=url,doc=The Splunk Event Collector URL."`
 	Token          string              `vfilter:"optional,field=token,doc=Splunk HEC Token."`
-	Index          string              `vfilter:"required,field=index,doc=The name of the index to upload to. If not specified, ensure a column is named _splunk_index."`
+	Index          string              `vfilter:"optional,field=index,doc=The name of the index to upload to. If not specified, ensure a column is named _splunk_index."`
 	Source         string              `vfilter:"optional,field=source,doc=The source field for splunk. If not specified ensure a column is named _splunk_source or this will be 'velociraptor'."`
 	SourceType     string              `vfilter:"optional,field=sourcetype,doc=The sourcetype field for splunk. If not specified ensure a column is named _splunk_source_type or this will 'vql'"`
 	ChunkSize      int64               `vfilter:"optional,field=chunk_size,doc=The number of rows to send at the time."`
@@ -58,7 +59,9 @@ type _SplunkPluginArgs struct {
 	Hostname       string              `vfilter:"optional,field=hostname,doc=Hostname for Splunk Events. Defaults to server hostname."`
 	TimestampField string              `vfilter:"optional,field=timestamp_field,doc=Field to use as event timestamp."`
 	HostnameField  string              `vfilter:"optional,field=hostname_field,doc=Field to use as event hostname. Overrides hostname parameter."`
-	Secret         string              `vfilter:"optional,field=secret,doc=Alternatively use a secret from the secrets service. Secret must be of type 'AWS S3 Creds'"`
+	Secret         string              `vfilter:"optional,field=secret,doc=Alternatively use a secret from the secrets service. Secret must be of type 'Splunk'"`
+	MaxRetries     int64               `vfilter:"optional,field=max_retries,doc=Maximum number of retries for failed uploads (default: 3)."`
+	RetryWait      int64               `vfilter:"optional,field=retry_wait,doc=Wait time in seconds between retries (default: 2)."`
 }
 
 type _SplunkPlugin struct{}
@@ -70,16 +73,24 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 
 	go func() {
 		defer close(output_chan)
-		defer vql_subsystem.RegisterMonitor("splunk_upload", args)()
+		defer vql_subsystem.RegisterMonitor(ctx, "splunk_upload", args)()
 
-		err := vql_subsystem.CheckAccess(scope, acls.COLLECT_SERVER)
+		err := vql_subsystem.CheckAccess(scope, acls.NETWORK)
 		if err != nil {
+			scope.Log("splunk_upload: %v", err)
 			return
 		}
 
 		arg := &_SplunkPluginArgs{}
 		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
+			scope.Log("splunk_upload: %v", err)
+			return
+		}
+
+		err = self.maybeForceSecrets(ctx, scope, arg)
+		if err != nil {
+			scope.Log("splunk_upload: %v", err)
 			return
 		}
 
@@ -89,6 +100,16 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 				scope.Log("splunk_upload: %v", err)
 				return
 			}
+		}
+
+		if arg.URL == "" {
+			scope.Log("splunk_upload: field url is required")
+			return
+		}
+
+		if arg.Index == "" {
+			scope.Log("splunk_upload: field index is required")
+			return
 		}
 
 		if arg.Threads == 0 {
@@ -109,6 +130,14 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 
 		if len(arg.Source) == 0 {
 			arg.Source = "velociraptor"
+		}
+
+		if arg.MaxRetries == 0 {
+			arg.MaxRetries = 3
+		}
+
+		if arg.RetryWait == 0 {
+			arg.RetryWait = 2
 		}
 
 		config_obj, _ := artifacts.GetConfig(scope)
@@ -283,23 +312,67 @@ func send_to_splunk(
 		}
 	}
 
-	err := client.LogEvents(events)
-
-	if err != nil {
-		select {
-		case <-ctx.Done():
+	// Attempt to send events with retry logic
+	var err error
+	for attempt := int64(0); attempt <= arg.MaxRetries; attempt++ {
+		err = client.LogEvents(events)
+		
+		if err == nil {
+			// Success
+			select {
+			case <-ctx.Done():
+				return
+			case output_chan <- ordereddict.NewDict().
+				Set("Response", len(buf)):
+			}
 			return
-		case output_chan <- ordereddict.NewDict().
-			Set("Response", err):
 		}
-	} else {
-		select {
-		case <-ctx.Done():
-			return
-		case output_chan <- ordereddict.NewDict().
-			Set("Response", len(buf)):
+		
+		// If this wasn't the last attempt, wait before retrying
+		if attempt < arg.MaxRetries {
+			scope.Log("splunk_upload: attempt %d failed: %v, retrying...", attempt+1, err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Duration(arg.RetryWait) * time.Second):
+				// Continue to next retry
+			}
 		}
 	}
+
+	// All retries exhausted
+	scope.Log("ERROR:splunk_upload: all %d attempts failed: %v", arg.MaxRetries+1, err)
+	select {
+	case <-ctx.Done():
+		return
+	case output_chan <- ordereddict.NewDict().
+		Set("Response", err.Error()):
+	}
+}
+
+func (self _SplunkPlugin) maybeForceSecrets(
+	ctx context.Context, scope vfilter.Scope, arg *_SplunkPluginArgs) error {
+
+	// Not running on the server, secrets dont work.
+	config_obj, ok := vql_subsystem.GetServerConfig(scope)
+	if !ok {
+		return nil
+	}
+
+	if config_obj.Security == nil {
+		return nil
+	}
+
+	if !config_obj.Security.VqlMustUseSecrets {
+		return nil
+	}
+
+	// If an explicit secret is defined let it filter the URLs.
+	if arg.Secret != "" {
+		return nil
+	}
+
+	return utils.SecretsEnforced
 }
 
 func mergeSecretSplunk(ctx context.Context, scope vfilter.Scope, arg *_SplunkPluginArgs) error {
@@ -315,30 +388,22 @@ func mergeSecretSplunk(ctx context.Context, scope vfilter.Scope, arg *_SplunkPlu
 
 	principal := vql_subsystem.GetPrincipal(scope)
 
-	secret_record, err := secrets_service.GetSecret(ctx, principal,
+	s, err := secrets_service.GetSecret(ctx, principal,
 		constants.SPLUNK_CREDS, arg.Secret)
 	if err != nil {
 		return err
 	}
 
-	get := func(field string) string {
-		return vql_subsystem.GetStringFromRow(
-			scope, secret_record.Data, field)
-	}
+	// Allow the user to override these fields
+	s.UpdateString("source", &arg.Source)
+	s.UpdateString("index", &arg.Index)
+	s.UpdateString("hostname_field", &arg.HostnameField)
+	s.UpdateString("hostname", &arg.Hostname)
 
-	get_bool := func(field string) bool {
-		return vql_subsystem.GetBoolFromString(vql_subsystem.GetStringFromRow(
-			scope, secret_record.Data, field))
-	}
-
-	arg.URL = get("url")
-	arg.Token = get("token")
-	arg.Index = get("index")
-	arg.Source = get("source")
-	arg.RootCerts = get("root_ca")
-	arg.Hostname = get("hostname")
-	arg.HostnameField = get("hostname_field")
-	arg.SkipVerify = get_bool("skip_verify")
+	arg.URL = s.GetString("url")
+	arg.Token = s.GetString("token")
+	arg.RootCerts = s.GetString("root_ca")
+	arg.SkipVerify = s.GetBool("skip_verify")
 
 	return nil
 }
@@ -350,7 +415,7 @@ func (self _SplunkPlugin) Info(
 		Name:     "splunk_upload",
 		Doc:      "Upload rows to splunk.",
 		ArgType:  type_map.AddType(scope, &_SplunkPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.COLLECT_SERVER).Build(),
+		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
 	}
 }
 
