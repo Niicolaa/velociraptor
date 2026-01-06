@@ -35,7 +35,6 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services"
-	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/functions"
@@ -73,9 +72,9 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 
 	go func() {
 		defer close(output_chan)
-		defer vql_subsystem.RegisterMonitor(ctx, "splunk_upload", args)()
+		defer vql_subsystem.RegisterMonitor("splunk_upload", args)()
 
-		err := vql_subsystem.CheckAccess(scope, acls.NETWORK)
+		err := vql_subsystem.CheckAccess(scope, acls.COLLECT_SERVER)
 		if err != nil {
 			scope.Log("splunk_upload: %v", err)
 			return
@@ -83,12 +82,6 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 
 		arg := &_SplunkPluginArgs{}
 		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
-		if err != nil {
-			scope.Log("splunk_upload: %v", err)
-			return
-		}
-
-		err = self.maybeForceSecrets(ctx, scope, arg)
 		if err != nil {
 			scope.Log("splunk_upload: %v", err)
 			return
@@ -388,22 +381,30 @@ func mergeSecretSplunk(ctx context.Context, scope vfilter.Scope, arg *_SplunkPlu
 
 	principal := vql_subsystem.GetPrincipal(scope)
 
-	s, err := secrets_service.GetSecret(ctx, principal,
+	secret_record, err := secrets_service.GetSecret(ctx, principal,
 		constants.SPLUNK_CREDS, arg.Secret)
 	if err != nil {
 		return err
 	}
 
-	// Allow the user to override these fields
-	s.UpdateString("source", &arg.Source)
-	s.UpdateString("index", &arg.Index)
-	s.UpdateString("hostname_field", &arg.HostnameField)
-	s.UpdateString("hostname", &arg.Hostname)
+	get := func(field string) string {
+		return vql_subsystem.GetStringFromRow(
+			scope, secret_record.Data, field)
+	}
 
-	arg.URL = s.GetString("url")
-	arg.Token = s.GetString("token")
-	arg.RootCerts = s.GetString("root_ca")
-	arg.SkipVerify = s.GetBool("skip_verify")
+	get_bool := func(field string) bool {
+		return vql_subsystem.GetBoolFromString(vql_subsystem.GetStringFromRow(
+			scope, secret_record.Data, field))
+	}
+
+	arg.URL = get("url")
+	arg.Token = get("token")
+	arg.Index = get("index")
+	arg.Source = get("source")
+	arg.RootCerts = get("root_ca")
+	arg.Hostname = get("hostname")
+	arg.HostnameField = get("hostname_field")
+	arg.SkipVerify = get_bool("skip_verify")
 
 	return nil
 }
@@ -415,7 +416,7 @@ func (self _SplunkPlugin) Info(
 		Name:     "splunk_upload",
 		Doc:      "Upload rows to splunk.",
 		ArgType:  type_map.AddType(scope, &_SplunkPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
+		Metadata: vql.VQLMetadata().Permissions(acls.COLLECT_SERVER).Build(),
 	}
 }
 
