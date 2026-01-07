@@ -61,6 +61,7 @@ type _SplunkPluginArgs struct {
 	Secret         string              `vfilter:"optional,field=secret,doc=Alternatively use a secret from the secrets service. Secret must be of type 'Splunk'"`
 	MaxRetries     int64               `vfilter:"optional,field=max_retries,doc=Maximum number of retries for failed uploads (default: 3)."`
 	RetryWait      int64               `vfilter:"optional,field=retry_wait,doc=Base wait time in seconds for exponential backoff between retries (default: 2). Actual wait times: 2s, 4s, 8s, 16s..."`
+	IdleConnTimeout int64              `vfilter:"optional,field=idle_conn_timeout,doc=How long to keep idle HTTP connections open in seconds (default: 5). Lower values help with firewalls/load balancers that close connections."`
 }
 
 type _SplunkPlugin struct{}
@@ -133,6 +134,10 @@ func (self _SplunkPlugin) Call(ctx context.Context,
 			arg.RetryWait = 2
 		}
 
+		if arg.IdleConnTimeout == 0 {
+			arg.IdleConnTimeout = 5
+		}
+
 		config_obj, _ := artifacts.GetConfig(scope)
 
 		wg := sync.WaitGroup{}
@@ -181,9 +186,9 @@ func _upload_rows(
 		&http.Client{
 			Timeout: time.Second * 20,
 			Transport: &http.Transport{
-				Proxy:           networking.GetProxy(),
-				TLSClientConfig: tlsConfig,
-				IdleConnTimeout: 5 * time.Second,    // Close before proxy/fw/hec timeout, hec defaults to 12
+				Proxy:            networking.GetProxy(),
+				TLSClientConfig:  tlsConfig,
+				IdleConnTimeout:  time.Duration(arg.IdleConnTimeout) * time.Second,
 			},
 		}, // Optional HTTP Client objects
 		arg.URL,
