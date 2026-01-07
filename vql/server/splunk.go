@@ -60,7 +60,7 @@ type _SplunkPluginArgs struct {
 	HostnameField  string              `vfilter:"optional,field=hostname_field,doc=Field to use as event hostname. Overrides hostname parameter."`
 	Secret         string              `vfilter:"optional,field=secret,doc=Alternatively use a secret from the secrets service. Secret must be of type 'Splunk'"`
 	MaxRetries     int64               `vfilter:"optional,field=max_retries,doc=Maximum number of retries for failed uploads (default: 3)."`
-	RetryWait      int64               `vfilter:"optional,field=retry_wait,doc=Wait time in seconds between retries (default: 2)."`
+	RetryWait      int64               `vfilter:"optional,field=retry_wait,doc=Base wait time in seconds for exponential backoff between retries (default: 2). Actual wait times: 2s, 4s, 8s, 16s..."`
 }
 
 type _SplunkPlugin struct{}
@@ -322,13 +322,15 @@ func send_to_splunk(
 			return
 		}
 		
-		// If this wasn't the last attempt, wait before retrying
+		// If this wasn't the last attempt, wait before retrying with exponential backoff
 		if attempt < arg.MaxRetries {
-			scope.Log("splunk_upload: attempt %d failed: %v, retrying...", attempt+1, err)
+			// Exponential backoff: retry_wait * 2^attempt (e.g., 2s, 4s, 8s, 16s)
+			backoffWait := time.Duration(arg.RetryWait*(1<<attempt)) * time.Second
+			scope.Log("splunk_upload: attempt %d failed: %v, retrying in %v...", attempt+1, err, backoffWait)
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Duration(arg.RetryWait) * time.Second):
+			case <-time.After(backoffWait):
 				// Continue to next retry
 			}
 		}
