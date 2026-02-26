@@ -339,7 +339,8 @@ require (
 // replace www.velocidex.com/golang/vfilter => ../vfilter
 // replace www.velocidex.com/golang/regparser => ../regparser
 // replace www.velocidex.com/golang/go-ntfs => ../go-ntfs
-// replace github.com/Velocidex/go-fat => ../go-fat
+replace github.com/Velocidex/go-fat => github.com/Niicolaa/go-fat v0.0.0-20260226150200-dbf0f86a93c4
+
 // replace github.com/Velocidex/go-vmdk => ../go-vmdk
 // replace www.velocidex.com/golang/go-pe => ../go-pe
 // replace www.velocidex.com/golang/evtx => ../evtx
