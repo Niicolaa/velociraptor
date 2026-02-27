@@ -74,18 +74,19 @@ jobs:
           copy staging\velociraptor-${{ matrix.glob }} docs\wix\output\velociraptor.exe
 
       - name: Install WiX 3.14
-        shell: cmd
+        shell: pwsh
         run: |
-          mkdir C:\wix
-          curl -sL -o C:\wix\wix.zip https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip
-          cd C:\wix && tar -xf wix.zip
+          $wixDir = "${{ runner.temp }}\wix"
+          New-Item -ItemType Directory -Path $wixDir -Force
+          Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip" -OutFile "$wixDir\wix.zip"
+          Expand-Archive -Path "$wixDir\wix.zip" -DestinationPath $wixDir
 
       - name: Build MSI
         shell: cmd
         working-directory: docs\wix
         run: |
-          C:\wix\candle.exe velociraptor_${{ matrix.arch }}.xml -arch ${{ matrix.wix_arch }} -ext C:\wix\WixUtilExtension.dll
-          C:\wix\light.exe velociraptor_${{ matrix.arch }}.wixobj -ext C:\wix\WixUtilExtension.dll
+          "${{ runner.temp }}\wix\candle.exe" velociraptor_${{ matrix.arch }}.xml -arch ${{ matrix.wix_arch }} -ext "${{ runner.temp }}\wix\WixUtilExtension.dll"
+          "${{ runner.temp }}\wix\light.exe" velociraptor_${{ matrix.arch }}.wixobj -ext "${{ runner.temp }}\wix\WixUtilExtension.dll"
 
       - name: Upload MSI
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
