@@ -69,9 +69,13 @@ jobs:
           path: staging/
 
       - name: Prepare build directory
-        shell: cmd
+        shell: pwsh
         run: |
-          copy staging\velociraptor-${{ matrix.glob }} docs\wix\output\velociraptor.exe
+          Get-ChildItem staging/ -Recurse
+          Copy-Item staging/velociraptor-${{ matrix.glob }} docs/wix/output/Velociraptor.exe
+          $size = (Get-Item docs/wix/output/Velociraptor.exe).Length
+          Write-Host "Binary size: $($size / 1MB) MB"
+          if ($size -lt 1MB) { throw "Binary too small: $size bytes" }
 
       - name: Install WiX 3.14
         shell: pwsh
