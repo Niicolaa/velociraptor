@@ -1,0 +1,95 @@
+name: Build Windows MSI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-binary:
+    name: Build Windows Binaries
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
+        with:
+          go-version: '^1.25'
+          cache: false
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64-x86-64-dev gcc-mingw-w64-x86-64 gcc-mingw-w64
+
+      - name: Setup Node.js
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
+        with:
+          node-version: 22.19
+
+      - name: Build GUI
+        run: |
+          cd gui/velociraptor/
+          npm install
+          npm run build
+
+      - name: Build Windows binaries
+        run: |
+          export PATH=$PATH:~/go/bin/
+          go run make.go -v UpdateDependentTools
+          go run make.go -v Windows
+          go run make.go -v Windowsx86
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: windows-binaries
+          path: output/velociraptor-*-windows-*
+
+  build-msi:
+    name: Build MSI (${{ matrix.arch }})
+    needs: build-binary
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            wix_arch: x64
+            glob: "*-windows-amd64.exe"
+          - arch: x86
+            glob: "*-windows-386.exe"
+            wix_arch: x86
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: staging/
+
+      - name: Prepare build directory
+        shell: cmd
+        run: |
+          copy staging\velociraptor-${{ matrix.glob }} docs\wix\output\velociraptor.exe
+
+      - name: Install WiX 3.14
+        shell: cmd
+        run: |
+          mkdir C:\wix
+          curl -sL -o C:\wix\wix.zip https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip
+          cd C:\wix && tar -xf wix.zip
+
+      - name: Build MSI
+        shell: cmd
+        working-directory: docs\wix
+        run: |
+          C:\wix\candle.exe velociraptor_${{ matrix.arch }}.xml -arch ${{ matrix.wix_arch }} -ext C:\wix\WixUtilExtension.dll
+          C:\wix\light.exe velociraptor_${{ matrix.arch }}.wixobj -ext C:\wix\WixUtilExtension.dll
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: velociraptor-${{ matrix.arch }}-msi
+          path: docs/wix/velociraptor_${{ matrix.arch }}.msi
+          retention-days: 90
