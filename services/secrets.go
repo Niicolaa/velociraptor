@@ -74,7 +74,7 @@ package services
 
   If the root org admin wants to remove access to the secret from all
   child orgs they need to use the VQL function
-  secret_modify(delete=TRUE) to truely delete the secret in the child
+  secret_modify(delete=TRUE) to truly delete the secret in the child
   org context (see the query() plugin to switch org contexts).
 
 */
@@ -142,7 +142,7 @@ func (self *Secret) UpdateString(field string, target *string) {
 	}
 }
 
-// Get the string from the secret or return an emptry field..
+// Get the string from the secret or return an empty field..
 func (self *Secret) GetString(field string) string {
 	var res string
 	self.UpdateString(field, &res)

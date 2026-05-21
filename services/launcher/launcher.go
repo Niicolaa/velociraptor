@@ -1,7 +1,7 @@
 /*
   Launches new collection against clients.
 
-  Artifacts are YAML files which encapsultate VQL queries in human
+  Artifacts are YAML files which encapsulate VQL queries in human
   readable contextual package. The launcher service is responsible for
   compiling artifacts into direct client requests. Clients run direct
   VQL statements derived from the artifacts, while users write,
@@ -118,11 +118,14 @@ package launcher
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-errors/errors"
 	"google.golang.org/protobuf/proto"
 	actions_proto "www.velocidex.com/golang/velociraptor/actions/proto"
+	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	"www.velocidex.com/golang/velociraptor/artifacts"
 	artifacts_proto "www.velocidex.com/golang/velociraptor/artifacts/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
@@ -131,6 +134,7 @@ import (
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
@@ -198,9 +202,10 @@ func (self *Launcher) CompileCollectorArgs(
 
 		// Batching control
 		var local_cpu_limit float32
-		var max_batch_wait, max_batch_rows uint64
+		var max_batch_wait uint64 // seconds
+		var max_batch_rows uint64
 		var max_batch_row_buffer uint64
-		var local_timeout uint64
+		var local_timeout uint64 // seconds
 
 		if config_obj != nil && config_obj.Defaults != nil {
 			max_batch_rows = config_obj.Defaults.MaxRows
@@ -209,7 +214,8 @@ func (self *Launcher) CompileCollectorArgs(
 		}
 
 		if collector_request.AllowCustomOverrides {
-			artifact, _ = repository.Get(ctx, config_obj, "Custom."+spec.Artifact)
+			artifact, _ = repository.Get(
+				ctx, config_obj, "Custom."+spec.Artifact)
 		}
 
 		if artifact == nil {
@@ -391,13 +397,16 @@ func (self *Launcher) CompileCollectorArgs(
 // the rules at the top of this file. Each single source artifact will
 // be converted to a single client request.
 func expandArtifacts(artifact *artifacts_proto.Artifact) []*artifacts_proto.Artifact {
-	if artifact.Type == "server_event" || artifact.Type == "client_event" {
+	artifact_mode := artifact_modes.ModeNameToMode(artifact.Type)
+
+	// Event artifacts are handled especially.
+	if artifact_mode.IsEvent() {
 		result := []*artifacts_proto.Artifact{}
 		for _, source := range artifact.Sources {
 			new_artifact := proto.Clone(artifact).(*artifacts_proto.Artifact)
 			new_artifact.Sources = []*artifacts_proto.ArtifactSource{source}
 			// A precondition at the source level will
-			// override an artifact wide preconditon.
+			// override an artifact wide precondition.
 			if source.Precondition != "" {
 				new_artifact.Precondition = source.Precondition
 			}
@@ -653,28 +662,57 @@ func (self *Launcher) WriteArtifactCollectionRecord(
 		return "", err
 	}
 
+	var existing_flow *api_proto.FlowDetails
+
+	// The session Id we use to store the flow.
 	session_id := collector_request.FlowId
-	if session_id == "" {
+
+	// The session_id we send to the client.
+	var client_session_id string
+
+	// If the session_id starts with a / it is a relative child flow.
+	if strings.HasPrefix(session_id, "/S") {
 		session_id = utils.NewFlowId(client_id)
+		client_session_id = session_id + "/S"
+
+	} else if session_id == "" {
+		session_id = utils.NewFlowId(client_id)
+		client_session_id = session_id
+
+	} else {
+		// The user asked for a pre-determined flow id. It might be an
+		// existing flow. In this case we operate if flow append mode.
+		existing_flow, err = self.GetFlowDetails(ctx, config_obj,
+			services.GetFlowOptions{}, client_id, session_id)
+		if err == nil && existing_flow.Context != nil &&
+			existing_flow.Context.Request != nil {
+
+			// When relaunching a flow, we modify the flow id to
+			// distinguish it from its parent flow.
+			client_session_id = fmt.Sprintf("%s/%d", session_id,
+				len(existing_flow.Context.PreviousFlows))
+		}
 	}
 
 	// How long to batch log messages for on the client.
-	batch_delay := uint64(2000)
+	batch_delay := time.Second * 2
 	if collector_request.LogBatchTime > 0 {
-		batch_delay = collector_request.LogBatchTime
+		batch_delay = time.Second * time.Duration(
+			collector_request.LogBatchTime)
 	} else if config_obj.Frontend != nil &&
 		config_obj.Frontend.Resources != nil &&
 		config_obj.Frontend.Resources.DefaultLogBatchTime > 0 {
-		batch_delay = config_obj.Frontend.Resources.DefaultLogBatchTime
+		batch_delay = time.Second * time.Duration(
+			config_obj.Frontend.Resources.DefaultLogBatchTime)
 	}
 
 	// Compile all the requests into specific tasks to be sent to the
 	// client.
 	task := &crypto_proto.VeloMessage{
-		SessionId: session_id,
+		SessionId: client_session_id,
 		RequestId: constants.ProcessVQLResponses,
 		FlowRequest: &crypto_proto.FlowRequest{
-			LogBatchTime:   batch_delay,
+			LogBatchTime:   uint64(batch_delay.Seconds()),
 			MaxRows:        collector_request.MaxRows,
 			MaxLogs:        collector_request.MaxLogs,
 			MaxUploadBytes: collector_request.MaxUploadBytes,
@@ -699,7 +737,7 @@ func (self *Launcher) WriteArtifactCollectionRecord(
 
 	for _, arg := range vql_collector_args {
 		// If sending to the server, record who actually launched this.
-		if client_id == "server" {
+		if client_id == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 			arg.Principal = collector_request.Creator
 		}
 
@@ -723,6 +761,13 @@ func (self *Launcher) WriteArtifactCollectionRecord(
 		OutstandingRequests: int64(len(vql_collector_args)),
 	}
 
+	if existing_flow != nil {
+		previous_flows := existing_flow.Context.PreviousFlows
+		existing_flow.Context.PreviousFlows = nil
+		previous_flows = append(previous_flows, existing_flow.Context)
+		collection_context.PreviousFlows = previous_flows
+	}
+
 	// Record the tasks for provenance of what we actually did.
 	err = self.Storage().WriteTask(
 		ctx, config_obj, client_id, redactTask(task))
@@ -731,7 +776,7 @@ func (self *Launcher) WriteArtifactCollectionRecord(
 	}
 
 	// Run server artifacts inline.
-	if client_id == "server" {
+	if client_id == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		server_artifacts_service, err := services.GetServerArtifactRunner(
 			config_obj)
 		if err != nil {
@@ -770,7 +815,9 @@ func (self *Launcher) WriteArtifactCollectionRecord(
 	}
 
 	// Write the flow on the index.
-	err = self.Storage().WriteFlowIndex(ctx, config_obj, collection_context)
+	if existing_flow == nil {
+		err = self.Storage().WriteFlowIndex(ctx, config_obj, collection_context)
+	}
 	return collection_context.SessionId, err
 }
 
@@ -817,7 +864,7 @@ func NewLauncherService(
 	wg *sync.WaitGroup,
 	config_obj *config_proto.Config) (services.Launcher, error) {
 
-	// The laucher service is also created on the client to ensure it
+	// The launcher service is also created on the client to ensure it
 	// can compile artifacts etc. But it does not make sense to
 	// actually store any of the flows on the client. We therefore
 	// install a dummy storer which just returns errors for any

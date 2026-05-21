@@ -117,6 +117,7 @@ message ApiUserInterfaceTraits {
 
     // Current selected Org.
     string org = 24;
+    string org_name = 30;
 
     // The user's specific base path - only used for crazy reverse
     // proxy configurations.
@@ -127,12 +128,6 @@ message ApiUserInterfaceTraits {
     string auth_redirect_template = 27;
     bool disable_quarantine_button = 28;
 };
-
-message GlobalUserMessage {
-    string key = 1;
-    string level = 2;
-    string message = 3;
-}
 
 // Describe the user to the GUI.
 message ApiUser {
@@ -158,7 +153,8 @@ message ApiUser {
         description: "Whether this user is an OrgAdmin"
     }];
 
-    repeated GlobalUserMessage global_messages = 13;
+    // Messages for the user are available.
+    int64 messages = 14;
 }
 
 // Contol the GUI per user.
@@ -200,6 +196,9 @@ message SetGUIOptionsRequest {
     bool disable_server_events = 26;
     string auth_redirect_template = 27;
     bool disable_quarantine_button = 28;
+
+    // How many notifications are currently outstanding for the user.
+    int64 messages = 29;
 }
 
 message SetGUIOptionsResponse {

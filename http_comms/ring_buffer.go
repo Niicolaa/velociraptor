@@ -213,7 +213,7 @@ func (self *FileBasedRingBuffer) AvailableBytes() uint64 {
 	return uint64(self.header.AvailableBytes)
 }
 
-// Call Lease() repeatadly and compress each result until we get
+// Call Lease() repeatedly and compress each result until we get
 // closer to the required size.
 func LeaseAndCompress(self IRingBuffer, size uint64,
 	compression crypto_proto.PackedMessageList_CompressionType) [][]byte {

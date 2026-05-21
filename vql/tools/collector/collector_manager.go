@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Velocidex/ordereddict"
-	"gopkg.in/yaml.v2"
+	"github.com/Velocidex/yaml/v2"
 	"www.velocidex.com/golang/velociraptor/actions"
 	actions_proto "www.velocidex.com/golang/velociraptor/actions/proto"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
@@ -54,7 +54,7 @@ type collectionManager struct {
 	collection_context *flows.CollectionContext
 	logger             *logWriter
 
-	// The VQL requests we actuall collected. We store those in the
+	// The VQL requests we actually collected. We store those in the
 	// container for provenance.
 	requests api_proto.ApiFlowRequestDetails
 
@@ -472,7 +472,7 @@ func (self *collectionManager) SetTimeout(ns float64) {
 
 		case <-time.After(time.Duration(ns) * time.Nanosecond):
 			self.scope.Log("collect: <red>Timeout Error:</> Collection timed out after %v",
-				time.Now().Sub(start))
+				time.Since(start))
 			// Cancel the main context.
 			self.cancel()
 		}
@@ -493,14 +493,15 @@ func newCollectionManager(
 	}
 
 	return &collectionManager{
-		ctx:                subctx,
-		cancel:             cancel,
-		config_obj:         config_obj,
-		collection_context: flows.NewCollectionContext(ctx, config_obj),
-		concurrency:        utils.NewConcurrencyControl(concurrency, time.Hour),
-		output_chan:        output_chan,
-		scope:              scope,
-		throttler:          &throttler.DummyThrottler{},
+		ctx:        subctx,
+		cancel:     cancel,
+		config_obj: config_obj,
+		collection_context: flows.NewCollectionContext(
+			ctx, config_obj, &flows_proto.ArtifactCollectorContext{}),
+		concurrency: utils.NewConcurrencyControl(concurrency, time.Hour),
+		output_chan: output_chan,
+		scope:       scope,
+		throttler:   &throttler.DummyThrottler{},
 	}
 }
 
@@ -547,7 +548,7 @@ func (self *collectionManager) Close() error {
 		self.collection_context.StartTime = uint64(self.start_time.UnixNano())
 		self.collection_context.CreateTime = uint64(self.start_time.UnixNano())
 
-		launcher.UpdateFlowStats(&self.collection_context.ArtifactCollectorContext)
+		launcher.UpdateFlowStats(self.collection_context.ArtifactCollectorContext)
 
 		// Merge in the container stats
 		container_stats := self.container.Stats()
@@ -620,6 +621,6 @@ func (self *logWriter) Write(b []byte) (int, error) {
 	level, msg := logging.SplitIntoLevelAndLog(b)
 	now := int(Clock.Now().Unix())
 	return self.log_file.WriteJSONL([]byte(json.Format(
-		"{\"_ts\":%d,\"client_time\":%d,\"level\":%q,\"message\":%q}\n",
+		`{"_ts":%d,"client_time":%d,"level":%q,"message":%q}`,
 		now, now, level, msg)))
 }

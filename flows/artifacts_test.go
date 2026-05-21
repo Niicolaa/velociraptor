@@ -3,6 +3,7 @@ package flows
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	actions_proto "www.velocidex.com/golang/velociraptor/actions/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	constants "www.velocidex.com/golang/velociraptor/constants"
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
 	"www.velocidex.com/golang/velociraptor/file_store/test_utils"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
@@ -61,14 +63,20 @@ type TestSuite struct {
 }
 
 func (self *TestSuite) SetupTest() {
-	self.TestSuite.SetupTest()
+	self.ConfigObj = self.LoadConfig()
+
 	self.LoadArtifactsIntoConfig([]string{`
 name: System.Upload.Completion
 type: CLIENT_EVENT
 `, `
 name: Generic.Client.Profile
 type: CLIENT
+`, `
+name: Server.Internal.Alerts
+type: SERVER_EVENT
 `})
+
+	self.TestSuite.SetupTest()
 
 	client_info_manager, err := services.GetClientInfoManager(self.ConfigObj)
 	assert.NoError(self.T(), err)
@@ -78,6 +86,7 @@ type: CLIENT
 			ClientId: self.client_id,
 		},
 	})
+	assert.NoError(self.T(), err)
 }
 
 func (self *TestSuite) TestGetFlow() {
@@ -125,6 +134,8 @@ func (self *TestSuite) TestGetFlow() {
 
 		flow_ids = append(flow_ids, flow_id)
 	}
+
+	_ = flow_ids
 
 	// Get all the responses - ask for 100 results if available
 	// but only 40 are there.
@@ -194,6 +205,33 @@ func (self *TestSuite) TestRetransmission() {
 
 	// The flow should have only a single row though.
 	assert.Equal(self.T(), collection_context.TotalCollectedRows, uint64(1))
+
+}
+
+// Invalid monitoring messages
+func (self *TestSuite) TestMonitoringInvalid() {
+	runner := NewLegacyFlowRunner(self.ConfigObj)
+	err := runner.ProcessSingleMessage(self.Ctx,
+		&crypto_proto.VeloMessage{
+			Source:    self.client_id,
+			SessionId: constants.MONITORING_WELL_KNOWN_FLOW,
+			VQLResponse: &actions_proto.VQLResponse{
+				Columns: []string{
+					"ClientId", "Timestamp", "Fqdn", "HuntId"},
+				JSONLResponse: fmt.Sprintf(
+					"{\"ClientId\": \"%s\", \"HuntId\": \"H.123\"}\n", self.client_id),
+				TotalRows: 1,
+				Query: &actions_proto.VQLRequest{
+					Name: "Server.Internal.Alerts",
+				},
+			},
+		})
+	assert.NoError(self.T(), err)
+
+	runner.Close(self.Ctx)
+
+	context := runner.context_map["F.Monitoring"].ArtifactCollectorContext
+	assert.Contains(self.T(), context.Status, "Only servers can write")
 
 }
 
@@ -276,7 +314,7 @@ func (self *TestSuite) TestResourceLimits() {
 	// Collection has 1 row and it is still in the running state.
 	assert.Equal(self.T(), collection_context.TotalCollectedRows, uint64(1))
 	assert.Equal(self.T(), collection_context.State,
-		flows_proto.ArtifactCollectorContext_RUNNING)
+		flows_proto.ArtifactCollectorContext_IN_PROGRESS)
 
 	// Send another row
 	message.ResponseId++
@@ -292,7 +330,7 @@ func (self *TestSuite) TestResourceLimits() {
 	// Collection has 2 rows and it is still in the running state.
 	assert.Equal(self.T(), collection_context.TotalCollectedRows, uint64(2))
 	assert.Equal(self.T(), collection_context.State,
-		flows_proto.ArtifactCollectorContext_RUNNING)
+		flows_proto.ArtifactCollectorContext_IN_PROGRESS)
 
 	// Now send 5 rows in one message. We should accept the 5 rows
 	// but terminate the flow due to resource exhaustion.
@@ -334,7 +372,7 @@ func (self *TestSuite) TestResourceLimits() {
 	runner.Close(self.Ctx)
 
 	// We still collect these rows but the flow is still in the
-	// error state. We do this so we dont lose the last few
+	// error state. We do this so we don't lose the last few
 	// messages which are still in flight.
 	collection_context, err = LoadCollectionContext(self.Ctx, self.ConfigObj,
 		self.client_id, flow_id)
@@ -368,15 +406,14 @@ func (self *TestSuite) TestClientUploaderStoreFile() {
 		nilTime, nilTime, nilTime, nilTime, 0, reader)
 
 	// Get a new collection context.
-	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj)
-	collection_context.ArtifactCollectorContext = flows_proto.ArtifactCollectorContext{
-		SessionId:           self.flow_id,
-		ClientId:            self.client_id,
-		OutstandingRequests: 1,
-		Request: &flows_proto.ArtifactCollectorArgs{
-			Artifacts: []string{"Generic.Client.Info"},
-		},
-	}
+	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj,
+		&flows_proto.ArtifactCollectorContext{
+			SessionId:           self.flow_id,
+			ClientId:            self.client_id,
+			OutstandingRequests: 1,
+			Request: &flows_proto.ArtifactCollectorArgs{
+				Artifacts: []string{"Generic.Client.Info"},
+			}})
 
 	for _, response := range resp.Drain.WaitForStatsMessage(self.T()) {
 		response.Source = self.client_id
@@ -452,7 +489,7 @@ func (self *TestSuite) TestClientUploaderStoreFile() {
 }
 
 // Schedule the flow and drain its messages to emulate it being
-// inflight.
+// in-flight.
 func (self *TestSuite) scheduleFlow() {
 	closer := utils.SetFlowIdForTests(self.flow_id)
 	defer closer()
@@ -614,17 +651,6 @@ func (self *TestSuite) testCollectionCompletion(
 	outstanding_requests int64,
 	requests []*crypto_proto.VeloMessage) *flows_proto.ArtifactCollectorContext {
 	// Get a new collection context.
-	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj)
-	collection_context.ArtifactCollectorContext = flows_proto.ArtifactCollectorContext{
-		SessionId:           self.flow_id,
-		ClientId:            self.client_id,
-		State:               flows_proto.ArtifactCollectorContext_RUNNING,
-		OutstandingRequests: outstanding_requests,
-		Request: &flows_proto.ArtifactCollectorArgs{
-			Artifacts: []string{"Generic.Client.Info"},
-		},
-	}
-
 	runner := NewFlowRunner(self.Ctx, self.ConfigObj)
 
 	wg := &sync.WaitGroup{}
@@ -633,7 +659,8 @@ func (self *TestSuite) testCollectionCompletion(
 
 	// Capture output from System.Flow.Completion
 	err := journal.WatchQueueWithCB(self.Ctx, self.ConfigObj, wg,
-		"System.Flow.Completion", "", func(ctx context.Context,
+		artifacts.FLOW_COMPLETION, "",
+		func(ctx context.Context,
 			config_obj *config_proto.Config,
 			row *ordereddict.Dict) error {
 
@@ -695,13 +722,13 @@ func (self *TestSuite) TestClientUploaderStoreSparseFile() {
 		nilTime, nilTime, nilTime, nilTime, 0, reader)
 
 	// Get a new collection context.
-	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj)
-	collection_context.ArtifactCollectorContext = flows_proto.ArtifactCollectorContext{
-		SessionId:           self.flow_id,
-		ClientId:            self.client_id,
-		OutstandingRequests: 1,
-		Request:             &flows_proto.ArtifactCollectorArgs{},
-	}
+	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj,
+		&flows_proto.ArtifactCollectorContext{
+			SessionId:           self.flow_id,
+			ClientId:            self.client_id,
+			OutstandingRequests: 1,
+			Request:             &flows_proto.ArtifactCollectorArgs{},
+		})
 
 	for _, msg := range resp.Drain.WaitForStatsMessage(self.T()) {
 		msg.Source = self.client_id
@@ -829,12 +856,12 @@ func (self *TestSuite) TestClientUploaderStoreSparseFileNTFS() {
 		nilTime, nilTime, nilTime, nilTime, 0, fd)
 
 	// Get a new collection context.
-	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj)
-	collection_context.ArtifactCollectorContext = flows_proto.ArtifactCollectorContext{
-		SessionId: self.flow_id,
-		ClientId:  self.client_id,
-		Request:   &flows_proto.ArtifactCollectorArgs{},
-	}
+	collection_context := NewCollectionContext(self.Ctx, self.ConfigObj,
+		&flows_proto.ArtifactCollectorContext{
+			SessionId: self.flow_id,
+			ClientId:  self.client_id,
+			Request:   &flows_proto.ArtifactCollectorArgs{},
+		})
 
 	// Process it.
 	for _, resp := range resp.Drain.WaitForStatsMessage(self.T()) {
@@ -925,12 +952,4 @@ func TestArtifactCollection(t *testing.T) {
 		client_id: "C.12312",
 		flow_id:   "F.1232",
 	})
-}
-
-func getFlowIds(in []*flows_proto.ArtifactCollectorContext) []string {
-	res := []string{}
-	for _, i := range in {
-		res = append(res, i.SessionId)
-	}
-	return res
 }

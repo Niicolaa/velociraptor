@@ -35,7 +35,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/third_party/zip"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -197,6 +196,11 @@ func (self RepackFunction) Call(ctx context.Context,
 
 	// Write to a local file.
 	if arg.DestFilename != "" {
+		err = file.CheckPath(arg.DestFilename)
+		if err != nil {
+			return err
+		}
+
 		fd, err := os.OpenFile(arg.DestFilename,
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
@@ -310,6 +314,7 @@ func resizeEmbeddedSize(
 	// size so we can just increase it to the required size.
 	if utils.BytesEqual(exe_bytes[:len(generic_re)], generic_re) {
 		resize_bytes := make([]byte, len(exe_bytes)+required_size)
+		//lint:file-ignore S1001 - should use copy(to, from)
 		for i := 0; i < len(exe_bytes); i++ {
 			resize_bytes[i] = exe_bytes[i]
 		}
@@ -601,10 +606,12 @@ func appendPayload(exe_bytes []byte, payload []byte) []byte {
 
 func (self RepackFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "repack",
-		Doc:      "Repack and upload a repacked binary or MSI to the server.",
-		ArgType:  type_map.AddType(scope, &RepackFunctionArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.COLLECT_SERVER, acls.FILESYSTEM_WRITE).Build(),
+		Name:    "repack",
+		Doc:     "Repack and upload a repacked binary or MSI to the server.",
+		ArgType: type_map.AddType(scope, &RepackFunctionArgs{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.COLLECT_SERVER, acls.FILESYSTEM_WRITE).Build(),
+		Version: 2,
 	}
 }
 

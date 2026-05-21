@@ -68,11 +68,10 @@ func doThirdPartyShow() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	inventory_manager, err := services.GetInventory(config_obj)
 	if err != nil {
@@ -117,18 +116,18 @@ func doThirdPartyRm() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	inventory_manager, err := services.GetInventory(config_obj)
 	if err != nil {
 		return err
 	}
 
-	return inventory_manager.RemoveTool(config_obj, *third_party_rm_name)
+	return inventory_manager.RemoveTool(
+		ctx, config_obj, *third_party_rm_name)
 }
 
 func doThirdPartyUpload() error {
@@ -145,11 +144,10 @@ func doThirdPartyUpload() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	filename := *third_party_upload_filename
 	if filename == "" {

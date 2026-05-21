@@ -2,7 +2,7 @@ Parameters:
   YaraRules: |
     import "pe"
 
-    /* We dont support import "hash" so this import should be removed. */
+    /* We don't support import "hash" so this import should be removed. */
     import "hash"
 
     rule Hive {

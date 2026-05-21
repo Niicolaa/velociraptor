@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	utils "www.velocidex.com/golang/velociraptor/utils"
 )
@@ -97,7 +98,7 @@ func CheckClientStatus(
 		return err
 	}
 
-	// If the client is already up to date we dont need to look
+	// If the client is already up to date we don't need to look
 	// further.
 	hunts_last_timestamp := dispatcher.GetLastTimestamp()
 	if stats.LastHuntTimestamp >= hunts_last_timestamp {
@@ -109,7 +110,7 @@ func CheckClientStatus(
 	hunts := make([]*api_proto.Hunt, 0)
 	err = dispatcher.ApplyFuncOnHunts(ctx, services.OnlyRunningHunts,
 		func(hunt *api_proto.Hunt) error {
-			// Hunt is stopped we dont care about it.
+			// Hunt is stopped we don't care about it.
 			if hunt.State != api_proto.Hunt_RUNNING {
 				return nil
 			}
@@ -151,7 +152,7 @@ func CheckClientStatus(
 			ordereddict.NewDict().
 				Set("HuntId", hunt.HuntId).
 				Set("ClientId", client_id),
-			"System.Hunt.Participation")
+			artifacts.HUNT_PARTICIPATION)
 
 		if hunt.StartTime > latest_timestamp {
 			latest_timestamp = hunt.StartTime

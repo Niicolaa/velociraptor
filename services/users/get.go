@@ -21,7 +21,7 @@ import (
 func (self *UserManager) GetUser(
 	ctx context.Context, principal, username string) (*api_proto.VelociraptorUser, error) {
 
-	// For the server name we dont have a real user record, we make a
+	// For the server name we don't have a real user record, we make a
 	// hard coded user record instead.
 	if username == utils.GetSuperuserName(self.config_obj) {
 		return &api_proto.VelociraptorUser{
@@ -67,7 +67,7 @@ func (self *UserManager) GetUserWithHashes(
 	// manager.
 	self.normalizeOrgList(ctx, user)
 
-	// A user can always get their own user record regarless of
+	// A user can always get their own user record regardless of
 	// permissions.
 	if principal == username {
 		return user, user_err

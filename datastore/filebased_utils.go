@@ -90,7 +90,7 @@ func AsDatastoreFilename(
 // If the path spec is already safe we can shortcut it and not
 // sanitize. Safe paths are assumed to be generated from within the
 // application and therefore can not overflow path lengths - so we
-// dont need to compress them.
+// don't need to compress them.
 func asSafeDirWithRoot(
 	path api.DSPathSpec, root string) string {
 	// No need to sanitize here because the DSPathSpec is already
@@ -164,10 +164,6 @@ func compressComponent(
 	// Hash compress the original component
 	hash := sha1.Sum([]byte(component))
 	component_hash := fmt.Sprintf("#%x", hash)
-	db, err := GetDB(config_obj)
-	if err != nil {
-		return component_hash
-	}
 
 	ds_pathspec := &api_proto.DSPathSpec{
 		Components: []string{component},

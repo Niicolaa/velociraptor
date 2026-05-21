@@ -318,7 +318,7 @@ func (self *BackupService) feedProvider(
 			stat.Error = err
 		}
 
-		// Stop new rows to be written - we dont care any more.
+		// Stop new rows to be written - we don't care any more.
 		cancel()
 
 		// Pass the result to the main routine.

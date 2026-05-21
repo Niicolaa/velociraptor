@@ -26,8 +26,9 @@ import (
 	"runtime/trace"
 	"time"
 
+	"errors"
+
 	kingpin "github.com/alecthomas/kingpin/v2"
-	errors "github.com/go-errors/errors"
 	"www.velocidex.com/golang/velociraptor/config"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/constants"
@@ -54,13 +55,11 @@ var (
 	api_config_path = app.Flag("api_config", "The API configuration file.").
 			Short('a').String()
 
-	override_flag = app.Flag("config_override", "A json object to override the config.").
-			Short('o').String()
-
 	run_as = app.Flag("runas", "Run as this username's ACLs").String()
 
 	artifact_definitions_dir = app.Flag(
-		"definitions", "A directory containing artifact definitions").String()
+		"definitions", "A directory containing artifact definitions").
+		Short('D').String()
 
 	no_color_flag = app.Flag("nocolor", "Disable color output").Bool()
 
@@ -152,6 +151,10 @@ func main() {
 			args = append(args, post...)
 			Prelog("Autoexec with parameters: %v", args)
 		}
+
+		if errors.Is(err, utils.EmbeddedConfigError) {
+			kingpin.FatalIfError(err, "EmbeddedConfigError")
+		}
 	}
 
 	// Log the actual argv that will be run.
@@ -196,7 +199,6 @@ func main() {
 		WithConfigMutator("Mutator: applyMinionRole", applyMinionRole).
 		WithCustomValidator("validator: ensureProxy", proxy.ConfigureProxy).
 		WithCustomValidator("validator: applyRemapping", applyRemapping).
-		WithConfigMutator("OverrideFlag", deprecatedOverride).
 		WithLogFile(*logging_flag).
 		WithConfigMutator("Mutator maybeAddDefinitionsDirectory", maybeAddDefinitionsDirectory)
 
@@ -262,7 +264,6 @@ func makeDefaultConfigLoader() *config.Loader {
 		WithCustomValidator("validator: initDebugServer", initDebugServer).
 		WithCustomValidator("validator: timezone", initTimezone).
 		WithLogFile(*logging_flag).
-		WithConfigMutator("OverrideFlag", deprecatedOverride).
 		WithConfigMutator("Mutator applyMinionRole", applyMinionRole).
 		WithCustomValidator("validator: ensureProxy", proxy.ConfigureProxy).
 		WithConfigMutator("Mutator applyRemapping", applyRemapping).

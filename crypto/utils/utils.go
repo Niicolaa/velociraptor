@@ -36,7 +36,7 @@ import (
 	"www.velocidex.com/golang/vfilter"
 )
 
-// Retrieve frontend private key frome scope
+// Retrieve frontend private key from scope
 // Must be running on server
 func GetPrivateKeyFromScope(scope vfilter.Scope) (*rsa.PrivateKey, error) {
 

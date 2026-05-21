@@ -299,7 +299,7 @@ func (self *SyslogWatcherService) monitorOnce(
 				handles = self.distributeLine(
 					string(buff[:new_lf]), filename, key, handles)
 
-				// No more listeners - we dont care any more.
+				// No more listeners - we don't care any more.
 				if len(handles) == 0 {
 					return cursor
 				}
@@ -325,7 +325,7 @@ func (self *SyslogWatcherService) monitorOnce(
 					handles = self.distributeLine(
 						string(buff), filename, key, handles)
 
-					// No more listeners - we dont care any more.
+					// No more listeners - we don't care any more.
 					if len(handles) == 0 {
 						return cursor
 					}

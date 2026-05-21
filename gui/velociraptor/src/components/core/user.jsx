@@ -62,11 +62,7 @@ class _UserSettings extends React.Component {
 
                     let current_theme = this.state.traits.theme;
 
-                    this.setState({
-                        traits: traits,
-                        global_messages: response.data.global_messages || []});
-
-                    // Only upate the theme if it changed.
+                    // Only update the theme if it changed.
                     if (current_theme !== traits.theme) {
                         document.body.classList.remove('no-theme');
                         document.body.classList.remove('veloci-dark');
@@ -86,12 +82,20 @@ class _UserSettings extends React.Component {
                             document.body.classList.add("veloci-light");
                         }
                     }
+
+                    if(_.isEqual(traits, this.state.traits)) {
+                        return;
+                    };
+
+                    this.setState({
+                        traits: traits,
+                        messages: response.data.messages || []});
                 });
     }
 
     state = {
         traits: {},
-        global_messages: [],
+        messages: [],
         updateTraits: this.updateTraits,
     }
 

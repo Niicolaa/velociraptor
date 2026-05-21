@@ -105,7 +105,15 @@ func (self *EventLogWatcherService) StartMonitoring(
 	}
 
 	// A resolver for messages
-	resolver, _ := evtx.GetNativeResolver()
+	resolver, err := evtx.GetNativeResolver(evtx.MessageResolverOpts{
+		LangPreferenceRegeExp: vql_subsystem.GetStringFromRow(
+			scope, scope, constants.EVTX_PREFERRED_LANG),
+	})
+	if err != nil {
+		scope.Log("Registering watcher error: %v", err)
+		return
+	}
+
 	accessor, err := accessors.GetAccessor(accessor_name, scope)
 	if err != nil {
 		scope.Log("Registering watcher error: %v", err)
@@ -268,7 +276,7 @@ func (self *EventLogWatcherService) monitorOnce(
 				}
 			}
 
-			// No more listeners - we dont care any more.
+			// No more listeners - we don't care any more.
 			if len(new_handles) == 0 {
 				delete(self.registrations, key)
 				return new_last_event

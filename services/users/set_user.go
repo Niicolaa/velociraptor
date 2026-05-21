@@ -67,7 +67,7 @@ func (self *UserManager) SetUserPassword(
 		user_record.CurrentOrg = current_org
 	}
 
-	// A user can always get their own user record regarless of
+	// A user can always get their own user record regardless of
 	// permissions.
 	if principal == username {
 		if user_err != nil {

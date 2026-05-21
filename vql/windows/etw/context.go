@@ -27,8 +27,8 @@ type Registration struct {
 
 // A Session context manages an ETW session:
 
-// 1. It can accomodate multiple registrations on multiple GUIDs.
-// 2. It can also accomodate multiple watchers on the same GUID.
+// 1. It can accommodate multiple registrations on multiple GUIDs.
+// 2. It can also accommodate multiple watchers on the same GUID.
 // 3. As GUIDs are added or removes the session is manipulated to add/remove providers.
 // 4. When there are no more providers, we can close the session.
 // 5. If there are newer registrations, we can open the session again.
@@ -101,17 +101,23 @@ func (self *Handle) Close() {
 	self.closed = true
 
 	self.cancel()
-	close(self.output_chan)
+	select {
+	case <-self.ctx.Done():
+		return
+
+	default:
+		close(self.output_chan)
+	}
 }
 
 // Try to send but skip closed handles.
 func (self *Handle) Send(event *etw.Event) {
 	self.mu.Lock()
-	defer self.mu.Unlock()
-
 	if self.closed {
+		self.mu.Unlock()
 		return
 	}
+	self.mu.Unlock()
 
 	select {
 	case <-self.ctx.Done():
@@ -128,7 +134,7 @@ func NewHandle(ctx context.Context,
 		ctx:         subctx,
 		cancel:      cancel,
 		id:          utils.GetId(),
-		output_chan: make(chan vfilter.Row),
+		output_chan: make(chan vfilter.Row, 100),
 		scope:       scope,
 		guid:        guid,
 	}
@@ -374,7 +380,7 @@ func (self *SessionContext) Stats() []ProviderStat {
 
 // Check the new options to see if they are compatible with the
 // existing session. If not we need to update the session to cover
-// the comabined options for old watchers and new watchers.
+// the combined options for old watchers and new watchers.
 func (self *SessionContext) ensureOptionsValid(
 	scope vfilter.Scope, registration *Registration) (err error) {
 	if self.is_kernel_trace {
@@ -512,7 +518,7 @@ func (self *SessionContext) DeregisterHandle(
 	if err == nil {
 		err := session.UnsubscribeFromProvider(guid)
 		if err != nil {
-			scope.Log("ERROR:etw: failed to disable provider; %w", err)
+			scope.Log("ERROR:etw: failed to disable provider; %v", err)
 		}
 	}
 

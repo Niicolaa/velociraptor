@@ -188,7 +188,7 @@ class SigmaEditorDialog extends Component {
     getCompleter = ()=>{
         return {
             // When the last part matches this, the completer kicks in. We
-            // want it to triggr on ?
+            // want it to trigger on ?
             identifierRegexps: [/[a-zA-Z_0-9.?$\-\u00A2-\uFFFF|]/],
 
             getCompletions: (editor, session, pos, prefix, callback) => {
@@ -361,7 +361,7 @@ details: "Field %%field_name%%"
             org_id: window.globals.OrgId || "root",
         }, this.source.token).then(response => {
             // If there is an error it is not really an error we just
-            // dont have it yet.
+            // don't have it yet.
             if(response.error) {
                 this.setDefaultRule(selected_source);
             } else {

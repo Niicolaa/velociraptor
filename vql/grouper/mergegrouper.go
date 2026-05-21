@@ -41,7 +41,7 @@ type AggregateContext struct {
 }
 
 /*
-This is a memory efficient grouper with a contrained upper bound on
+This is a memory efficient grouper with a constrained upper bound on
 memory consumption.
 
  1. Grouped by rows are grouped into bins with a constant group key

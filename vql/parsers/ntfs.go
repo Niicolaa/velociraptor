@@ -23,13 +23,11 @@ import (
 	"strings"
 
 	"github.com/Velocidex/ordereddict"
-	"www.velocidex.com/golang/go-ntfs/parser"
 	ntfs "www.velocidex.com/golang/go-ntfs/parser"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/accessors/ntfs/readers"
 	"www.velocidex.com/golang/velociraptor/acls"
 	utils "www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vql_readers "www.velocidex.com/golang/velociraptor/vql/readers"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -47,7 +45,7 @@ type NTFSFunctionArgs struct {
 }
 
 func (self *NTFSFunctionArgs) getNTFSContext(
-	scope vfilter.Scope) (ntfs_ctx *parser.NTFSContext, err error) {
+	scope vfilter.Scope) (ntfs_ctx *ntfs.NTFSContext, err error) {
 
 	// Normalize some other args
 	if self.Inode != "" {
@@ -99,6 +97,7 @@ func (self NTFSFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *v
 		Name:    "parse_ntfs",
 		Doc:     "Parse specific inodes from an NTFS image file or the raw device.",
 		ArgType: type_map.AddType(scope, &NTFSFunctionArgs{}),
+		Version: 2,
 	}
 }
 
@@ -278,8 +277,8 @@ func (self MFTScanPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *
 		Name:     "parse_mft",
 		Doc:      "Scan the $MFT from an NTFS volume.",
 		ArgType:  type_map.AddType(scope, &MFTScanPluginArgs{}),
-		Version:  2,
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  3,
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 
@@ -336,6 +335,7 @@ func (self NTFSI30ScanPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMa
 		Name:    "parse_ntfs_i30",
 		Doc:     "Scan the $I30 stream from an NTFS MFT entry.",
 		ArgType: type_map.AddType(scope, &NTFSFunctionArgs{}),
+		Version: 2,
 	}
 }
 
@@ -396,7 +396,7 @@ func (self NTFSRangesPlugin) Call(
 			return
 		}
 
-		for _, rng := range parser.DebugRuns(reader, 0) {
+		for _, rng := range ntfs.DebugRuns(reader, 0) {
 			select {
 			case <-ctx.Done():
 				return
@@ -414,6 +414,7 @@ func (self NTFSRangesPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap
 		Name:    "parse_ntfs_ranges",
 		Doc:     "Show the run ranges for an NTFS stream.",
 		ArgType: type_map.AddType(scope, &NTFSFunctionArgs{}),
+		Version: 2,
 	}
 }
 

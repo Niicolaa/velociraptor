@@ -71,7 +71,7 @@ func ConvertJSONL(
 		}
 
 		if jsonl_out != nil {
-			// If we dont need to add any columns we just copy the
+			// If we don't need to add any columns we just copy the
 			// original JSONL without needing to encode it.
 			if extra_data == nil {
 				_, _ = jsonl_out.Write(serialized)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -31,7 +32,8 @@ var (
 
 	unzip_cmd_list = unzip_cmd.Flag("list", "List files in the zip").Short('l').Bool()
 
-	unzip_cmd_print = unzip_cmd.Flag("print", "Dump out the files in the zip").Short('p').Bool()
+	unzip_cmd_print    = unzip_cmd.Flag("print", "Dump out the files in the zip").Short('p').Bool()
+	unzip_cmd_password = unzip_cmd.Flag("password", "Use this password to extract ZIP").String()
 
 	unzip_cmd_file = unzip_cmd.Arg("file", "Zip file to parse").Required().String()
 
@@ -55,11 +57,10 @@ func doUnzip() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	filename, err := filepath.Abs(*unzip_cmd_file)
 	if err != nil {
@@ -80,15 +81,18 @@ func doUnzip() error {
 			Set("ZipPath", filename).
 			Set("DumpDir", *unzip_path).
 			Set("MemberGlob", *unzip_cmd_member).
+			Set(constants.ZIP_PASSWORDS, *unzip_cmd_password).
 			Set(constants.REPORT_ZIP_PASSWORD, *unzip_cmd_report_password),
 	}
 
 	if *unzip_cmd_list {
-		err = runUnzipList(builder)
+		err = runUnzipList(ctx, builder)
+
 	} else if *unzip_cmd_print {
-		err = runUnzipPrint(builder)
+		err = runUnzipPrint(ctx, builder)
+
 	} else {
-		err = runUnzipFiles(builder)
+		err = runUnzipFiles(ctx, builder)
 	}
 	if err != nil {
 		return err
@@ -97,7 +101,9 @@ func doUnzip() error {
 	return logger.Error
 }
 
-func runUnzipList(builder services.ScopeBuilder) error {
+func runUnzipList(
+	ctx context.Context,
+	builder services.ScopeBuilder) error {
 	query := `
        SELECT OSPath.Path AS Filename,
               Size
@@ -110,10 +116,12 @@ func runUnzipList(builder services.ScopeBuilder) error {
 		query += " AND " + *unzip_cmd_filter
 	}
 
-	return runQueryWithEnv(query, builder, *unzip_format)
+	return runQueryWithEnv(ctx, query, builder, *unzip_format)
 }
 
-func runUnzipFiles(builder services.ScopeBuilder) error {
+func runUnzipFiles(
+	ctx context.Context,
+	builder services.ScopeBuilder) error {
 	builder.Uploader = &uploads.FileBasedUploader{
 		UploadDir: *unzip_path,
 	}
@@ -131,10 +139,12 @@ func runUnzipFiles(builder services.ScopeBuilder) error {
 		query += " AND " + *unzip_cmd_filter
 	}
 
-	return runQueryWithEnv(query, builder, *unzip_format)
+	return runQueryWithEnv(ctx, query, builder, *unzip_format)
 }
 
-func runUnzipPrint(builder services.ScopeBuilder) error {
+func runUnzipPrint(
+	ctx context.Context,
+	builder services.ScopeBuilder) error {
 	query := `
        SELECT * FROM foreach(
        row={
@@ -142,17 +152,23 @@ func runUnzipPrint(builder services.ScopeBuilder) error {
           FROM glob(globs=MemberGlob,
                     root=pathspec(DelegatePath=ZipPath),
                     accessor='collector')
-          WHERE NOT IsDir AND OSPath =~ '.json$'
+          WHERE NOT IsDir AND OSPath.Path =~ '.json$'
        }, query={
-           SELECT *
+          SELECT OSPath.Path AS Filename, *
           FROM parse_jsonl(filename=OSPath, accessor='collector')
        })
     `
-	return runQueryWithEnv(query, builder, *unzip_format)
+
+	if *unzip_cmd_filter != "" {
+		query += " WHERE " + *unzip_cmd_filter
+	}
+
+	return runQueryWithEnv(ctx, query, builder, *unzip_format)
 }
 
 func runQueryWithEnv(
-	query string, builder services.ScopeBuilder, format string) error {
+	ctx context.Context, query string,
+	builder services.ScopeBuilder, format string) error {
 	manager, err := services.GetRepositoryManager(builder.Config)
 	if err != nil {
 		return err
@@ -165,9 +181,6 @@ func runQueryWithEnv(
 	if err != nil {
 		return fmt.Errorf("Unable to parse VQL Query: %w", err)
 	}
-
-	ctx, cancel := InstallSignalHandler(nil, scope)
-	defer cancel()
 
 	for _, vql := range vqls {
 		scope.Log("Running query %v", vfilter.FormatToString(scope, vql))

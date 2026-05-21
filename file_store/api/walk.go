@@ -18,7 +18,7 @@ func Walk(
 	walkFn WalkFunc) error {
 	children, err := file_store.ListDirectory(root)
 	if err != nil {
-		// Walking a non existant directory just ignores it.
+		// Walking a non-existent directory just ignores it.
 		return nil
 	}
 

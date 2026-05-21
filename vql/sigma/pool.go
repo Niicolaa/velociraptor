@@ -60,7 +60,7 @@ func (self *workerJob) Run() {
 		}
 
 		// The below operates on a copy of the event so as not to
-		// interfer with other threads
+		// interfere with other threads
 		event_copy := evaluator.NewEvent(event.Copy())
 		if match.CorrelationHits == nil {
 			event_copy.Set("_Match", match)
@@ -144,7 +144,7 @@ func (self *workerPool) Run(
 		debug:         self.debug,
 	}
 
-	// Will be cleared whent the job is done.
+	// Will be cleared when the job is done.
 	self.wg.Add(1)
 	select {
 	case <-ctx.Done():

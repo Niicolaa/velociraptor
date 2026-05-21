@@ -43,16 +43,16 @@ func (self *AccessorWindowsTestSuite) TestACL() {
 	scope := vql_subsystem.MakeScope()
 	scope.SetLogger(log.New(os.Stderr, " ", 0))
 
-	accessor, err := accessors.GetAccessor("file", scope)
+	_, err := accessors.GetAccessor("file", scope)
 	// Permission denied!
 	assert.Error(self.T(), err)
 
-	// Try again with more premissions.
+	// Try again with more permissions.
 	scope = vql_subsystem.MakeScope().AppendVars(ordereddict.NewDict().
 		Set(vql_subsystem.ACL_MANAGER_VAR, acl_managers.NullACLManager{}))
 	scope.SetLogger(log.New(os.Stderr, " ", 0))
 
-	accessor, err = accessors.GetAccessor("file", scope)
+	accessor, err := accessors.GetAccessor("file", scope)
 	assert.NoError(self.T(), err)
 
 	_, err = accessor.ReadDir("/")

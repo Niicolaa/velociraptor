@@ -20,6 +20,7 @@ package services
 import (
 	"context"
 
+	"github.com/Velocidex/ordereddict"
 	acl_proto "www.velocidex.com/golang/velociraptor/acls/proto"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
@@ -46,7 +47,7 @@ The user manager is global to all orgs and therefore it is
 initialized once for the root org.
 
 This is the one stop shop for managing everything about users except
-ACLs (which are managed within in org seperately)
+ACLs (which are managed within in org separately)
 */
 type UserManager interface {
 	SetUser(ctx context.Context,
@@ -73,7 +74,7 @@ type UserManager interface {
 
 	// Used to get the user's record including password hashes. This
 	// only makes sense when using the `Basic` authenticator because
-	// otherwise we dont maintain passwords.
+	// otherwise we don't maintain passwords.
 	GetUserWithHashes(ctx context.Context, principal, username string) (
 		*api_proto.VelociraptorUser, error)
 
@@ -131,6 +132,13 @@ type UserManager interface {
 		ctx context.Context,
 		principal, username string,
 		orgs []string) error
+
+	// Send the user a message which will appear in their notification
+	// view.
+	MessageUser(
+		ctx context.Context,
+		username, sender string,
+		message *ordereddict.Dict) error
 }
 
 // A helper
@@ -156,4 +164,26 @@ func GetUserManager() UserManager {
 	defer mu.Unlock()
 
 	return global_user_manager
+}
+
+// Message all users in this org
+func MessageAllUsers(
+	ctx context.Context,
+	principal string, orgs []string,
+	message *ordereddict.Dict) error {
+
+	user_manager := GetUserManager()
+	users, err := user_manager.ListUsers(ctx, principal, orgs)
+	if err != nil {
+		return err
+	}
+
+	for _, u := range users {
+		err = user_manager.MessageUser(ctx, u.Name, principal, message)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

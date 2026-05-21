@@ -283,7 +283,7 @@ func (self *FlowStorageManager) LoadCollectionContext(
 		func(client_info *services.ClientInfo) (*services.ClientInfo, error) {
 			if client_info != nil &&
 				client_info.InFlightFlows != nil {
-				in_flight_time, _ = client_info.InFlightFlows[flow_id]
+				in_flight_time = client_info.InFlightFlows[flow_id]
 			}
 			return nil, nil
 		})
@@ -386,7 +386,7 @@ func NewFlowStorageManager(
 		throttler:     utils.NewThrottlerWithDuration(time.Second),
 
 		// Do not allow more than one reindex at the same time. If we
-		// cant get to reindex quickly, we just dont worry about it
+		// cant get to reindex quickly, we just don't worry about it
 		// and use the old index snapshot.
 		concurrencyControl: utils.NewConcurrencyControl(
 			1, 100*time.Millisecond),

@@ -9,7 +9,7 @@
  It is allowed to have path separated within the component itself -
  this simply means that the component will be escaped with quotes.
 
- All quotes within a quotted component are doubled up.
+ All quotes within a quoted component are doubled up.
 
  For example:
 

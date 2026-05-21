@@ -14,7 +14,6 @@ import (
 	"github.com/Velocidex/tracee_velociraptor/manager"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -35,11 +34,12 @@ type EBPFEventPlugin struct{}
 
 func (self EBPFEventPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.PluginInfo {
 	return &vfilter.PluginInfo{
-		Name:     "watch_ebpf",
-		Doc:      "Watch for events from eBPF.",
-		ArgType:  type_map.AddType(scope, &EBPFEventPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
-		Version:  2,
+		Name:    "watch_ebpf",
+		Doc:     "Watch for events from eBPF.",
+		ArgType: type_map.AddType(scope, &EBPFEventPluginArgs{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.MACHINE_STATE).Build(),
+		Version: 2,
 	}
 }
 
@@ -52,6 +52,7 @@ func (self EBPFEventPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "watch_ebpf", args)()
+		defer utils.RecoverVQL(scope)
 
 		err := vql_subsystem.CheckAccess(scope, acls.MACHINE_STATE)
 		if err != nil {
@@ -150,7 +151,7 @@ spec:
    scope:
      - global
    rules:
-`, utils.GetTime().Now().Unix()) + strings.Join(rules, "\n")
+`, utils.GetId()) + strings.Join(rules, "\n")
 }
 
 type EBPFEventListPlugin struct{}

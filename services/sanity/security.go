@@ -57,10 +57,10 @@ func (self *SanityChecks) CheckSecuritySettings(
 	allowed_tree = nil
 	denied_tree = nil
 
-	// Load default set of FS accessor prefixs
+	// Load default set of FS accessor prefixes
 	if len(config_obj.Security.AllowedFsAccessorPrefix) > 0 {
 		allowed_tree = utils.NewPrefixTree(false)
-		for _, allowed := range config_obj.Security.AllowedFileAccessorPrefix {
+		for _, allowed := range config_obj.Security.AllowedFsAccessorPrefix {
 			full_path, err := accessors.NewFileStorePath(allowed)
 			if err != nil {
 				continue
@@ -70,24 +70,33 @@ func (self *SanityChecks) CheckSecuritySettings(
 		}
 	}
 
-	if len(config_obj.Security.DeniedFsAccessorPrefix) > 0 {
-		denied_tree = utils.NewPrefixTree(false)
-		for _, denied := range config_obj.Security.DeniedFsAccessorPrefix {
-			full_path, err := accessors.NewFileStorePath(denied)
-			if err != nil {
-				continue
-			}
-
-			denied_tree.Add(full_path.Components)
+	// Enforce a minimum set of paths denied to the accessor.
+	denied_prefixes := config_obj.Security.DeniedFsAccessorPrefix
+	if len(denied_prefixes) == 0 {
+		denied_prefixes = []string{
+			"acl",
+			"backups",
+			"config",
+			"orgs",
+			"secrets",
+			"users",
 		}
+	}
+
+	denied_tree = utils.NewPrefixTree(false)
+	for _, denied := range denied_prefixes {
+		full_path, err := accessors.NewFileStorePath(denied)
+		if err != nil {
+			continue
+		}
+		denied_tree.Add(full_path.Components)
 	}
 
 	file_store.SetPrefixes(allowed_tree, denied_tree)
 
 	// Populate any additional environ vars that need to be shadowed.
-	for _, s := range config_obj.Security.ShadowedEnvVars {
-		common.ShadowedEnv = append(common.ShadowedEnv, s)
-	}
+	common.ShadowedEnv = append(common.ShadowedEnv,
+		config_obj.Security.ShadowedEnvVars...)
 
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/services"
 )
 
-// Listenning queue: Server.Internal.HuntUpdate
+// Listening queue: Server.Internal.HuntUpdate
 // Fields:
 //   - Hunt - the new version of the hunt. Use this to update local storage.
 //   - TriggerParticipation: If set we trigger participation to all
@@ -21,9 +21,7 @@ func (self *HuntDispatcher) ProcessUpdate(
 	config_obj *config_proto.Config,
 	row *ordereddict.Dict) error {
 
-	if !self.I_am_master {
-		json.Dump(row)
-	}
+	self.Debug("ProcessUpdate %v", row)
 
 	hunt_any, pres := row.Get("Hunt")
 	if !pres {

@@ -25,7 +25,7 @@ func (self *NotebookPathManager) NotebookId() string {
 }
 
 // Attachments are not the same as uploads - they are usually uploaded
-// by pasting in the cell eg an image. We want the attachment to
+// by pasting in the cell e.g. an image. We want the attachment to
 // remain whenever the cell is updated to a new version.
 // Example workflow:
 //   - User uploads an attachment into a cell
@@ -66,7 +66,7 @@ func (self *NotebookPathManager) Path() api.DSPathSpec {
 	return self.root.AddChild(self.notebook_id).SetTag("Notebook")
 }
 
-// Stored the cached copy of the psuedo artifact we calculated when
+// Stored the cached copy of the pseudo artifact we calculated when
 // the artifact was first created. This is used even if the original
 // artifact is deleted or modified.
 func (self *NotebookPathManager) Artifact() api.DSPathSpec {

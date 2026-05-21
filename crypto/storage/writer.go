@@ -10,7 +10,6 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	crypto_client "www.velocidex.com/golang/velociraptor/crypto/client"
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
-	"www.velocidex.com/golang/velociraptor/crypto/utils"
 	crypto_utils "www.velocidex.com/golang/velociraptor/crypto/utils"
 	"www.velocidex.com/golang/velociraptor/services/writeback"
 )
@@ -63,7 +62,7 @@ func (self *CryptoFileWriter) serverPem() ([]byte, error) {
 	}
 
 	self.server_pem = server_pem
-	server_cert, err := utils.ParseX509CertFromPemStr(server_pem)
+	server_cert, err := crypto_utils.ParseX509CertFromPemStr(server_pem)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +123,7 @@ func (self *CryptoFileWriter) Flush(keep_on_error KeepPolicy) error {
 	defer self.mu.Unlock()
 
 	// Check if we need to truncate the file. TODO: Think of a more
-	// reasonable way to rotate the data in the file instead of justt
+	// reasonable way to rotate the data in the file instead of just
 	// truncating it.
 	if self.max_size > 0 && self.header.Next > self.max_size {
 		err := self.fd.Truncate(0)
@@ -270,7 +269,7 @@ func NewCryptoFileWriter(
 		return nil, err
 	}
 
-	// It is a symlink - we dont support those here!
+	// It is a symlink - we don't support those here!
 	if stat.Mode()&os.ModeSymlink != 0 {
 		fd.Close()
 		return nil, errors.New("Symlink not supported")

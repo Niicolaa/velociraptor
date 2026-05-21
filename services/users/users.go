@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
@@ -87,7 +88,7 @@ const (
 )
 
 var (
-	validUsernameRegEx = regexp.MustCompile("^[a-zA-Z0-9@.\\-_#+]+$")
+	validUsernameRegEx = regexp.MustCompile(`^[a-zA-Z0-9@.\-_#+]+$`)
 )
 
 type UserManager struct {
@@ -185,6 +186,14 @@ func (self UserManager) GetUserOptions(ctx context.Context, username string) (
 	return self.storage.GetUserOptions(ctx, username)
 }
 
+func (self UserManager) MessageUser(
+	ctx context.Context,
+	username, sender string,
+	message *ordereddict.Dict) error {
+
+	return self.storage.WriteUserMessage(ctx, username, sender, message)
+}
+
 func NewUserManager(
 	config_obj *config_proto.Config,
 	storage IUserStorageManager) *UserManager {
@@ -228,6 +237,5 @@ func StartUserManager(
 
 // Make sure there is always something available.
 func init() {
-	service := NewUserManager(&config_proto.Config{}, &NullStorageManager{})
-	services.RegisterUserManager(service)
+	services.RegisterUserManager(NewNullStorageManager())
 }

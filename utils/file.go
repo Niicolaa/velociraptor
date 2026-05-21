@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	errors "github.com/go-errors/errors"
 )
@@ -28,7 +29,7 @@ import (
 // https://stackoverflow.com/questions/21060945/simple-way-to-copy-a-file-in-golang
 
 // CopyFile copies a file from src to dst. If src and dst files exist,
-// and are the same, then return success. Otherise, copy the file
+// and are the same, then return success. Otherwise, copy the file
 // contents from src to dst.
 func CopyFile(ctx context.Context,
 	src, dst string, mode os.FileMode) (err error) {
@@ -108,4 +109,18 @@ func ReadDirNames(dirname string) ([]string, error) {
 	f.Close()
 
 	return names, err
+}
+
+// Like filepath.Join but ensures that name is safe by escaping
+// it. This makes it impossible to have directory traversal as name
+// must be below base.
+func Join(base string, names ...string) string {
+	escaped := []string{base}
+	for _, n := range names {
+		for _, component := range SplitComponents(n) {
+			escaped = append(escaped, SanitizeStringForZip(component))
+		}
+	}
+
+	return filepath.Join(escaped...)
 }

@@ -60,7 +60,7 @@ func (self Validator) validateTheme(theme string) (string, error) {
 	}
 }
 
-// For now we dont validate this
+// For now we don't validate this
 func (self Validator) validateTimezone(tz string) (string, error) {
 	return tz, nil
 }

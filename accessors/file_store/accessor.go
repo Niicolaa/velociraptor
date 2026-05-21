@@ -115,7 +115,7 @@ func (self FileStoreFileSystemAccessor) LstatWithOSPath(
 
 	lstat, err := self.file_store.StatFile(fullpath)
 	if err != nil {
-		// If it didnt work, we try case insensitive open
+		// If it didn't work, we try case insensitive open
 		corrected_path, err := getCorrectCase(self.file_store, fullpath)
 		if err != nil {
 			return nil, err
@@ -171,7 +171,7 @@ func (self FileStoreFileSystemAccessor) ReadDirWithOSPath(
 
 	files, err := self.file_store.ListDirectory(fullpath)
 	if err != nil {
-		// If it didnt work, we try case insensitive
+		// If it didn't work, we try case insensitive
 		corrected_path, err := getCorrectCase(self.file_store, fullpath)
 		if err != nil {
 			return nil, err
@@ -247,7 +247,7 @@ func (self FileStoreFileSystemAccessor) OpenWithOSPath(filename *accessors.OSPat
 		}
 
 		if err != nil {
-			// If it didnt work, we try case insensitive open
+			// If it didn't work, we try case insensitive open
 			corrected_path, err := getCorrectCase(self.file_store, fullpath)
 			if err != nil {
 				return nil, err

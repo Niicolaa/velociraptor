@@ -68,7 +68,7 @@ func (self *CategoryTreeNode) toString() []string {
 	}
 
 	for _, k := range utils.Sort(self.Profiles) {
-		p, _ := self.Profiles[k]
+		p := self.Profiles[k]
 		res = append(res, "- "+p.Name)
 	}
 
@@ -117,7 +117,6 @@ func getChildren(self *CategoryTreeNode) {
 			getChildren(new_node)
 		}
 	}
-
 }
 
 func GetProfileTree() *CategoryTreeNode {
@@ -135,9 +134,5 @@ func GetProfileWriters() (result []ProfileWriterInfo) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	for _, i := range handlers {
-		result = append(result, i)
-	}
-
-	return result
+	return append(result, handlers...)
 }

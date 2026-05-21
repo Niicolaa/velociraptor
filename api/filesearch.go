@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	errors "github.com/go-errors/errors"
+	file_store_accessor "www.velocidex.com/golang/velociraptor/accessors/file_store"
 	"www.velocidex.com/golang/velociraptor/acls"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	"www.velocidex.com/golang/velociraptor/file_store"
@@ -53,13 +54,18 @@ func (self *ApiServer) SearchFile(ctx context.Context,
 	path_spec := path_specs.NewUnsafeFilestorePath(in.VfsComponents...).
 		SetType(api.PATH_TYPE_FILESTORE_ANY)
 
+	err = file_store_accessor.IsFileAccessible(path_spec)
+	if err != nil {
+		return nil, Status(self.verbose, err)
+	}
+
 	file, err := file_store.GetFileStore(org_config_obj).ReadFile(path_spec)
 	if err != nil {
 		return nil, Status(self.verbose, err)
 	}
 	defer file.Close()
 
-	var reader_at io.ReaderAt = utils.MakeReaderAtter(file)
+	var reader_at = utils.MakeReaderAtter(file)
 	index, err := getIndex(org_config_obj, path_spec)
 
 	// If the file is sparse, we use the sparse reader.
@@ -78,6 +84,7 @@ func (self *ApiServer) SearchFile(ctx context.Context,
 	offset := int64(in.Offset)
 	var buf []byte
 
+	//lint:file-ignore SA6002 Slices are OK
 	if in.Forward {
 		buf = pool.Get().([]byte)
 		defer pool.Put(buf)
@@ -141,7 +148,7 @@ func (self *ApiServer) SearchFile(ctx context.Context,
 			offset -= int64(n)
 
 			// Offset went backwards before the start of the file - we
-			// didnt find it.
+			// didn't find it.
 			if offset < 0 {
 				return &api_proto.SearchFileResponse{}, nil
 			}

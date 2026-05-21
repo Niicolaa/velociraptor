@@ -112,7 +112,7 @@ func (self *Conn) ProfileWriter(ctx context.Context,
 	scope vfilter.Scope, output_chan chan vfilter.Row) {
 	now := utils.GetTime().Now()
 
-	// Get a copy of the stats so we dont block the actual connection.
+	// Get a copy of the stats so we don't block the actual connection.
 	stats := self.stats.Get()
 
 	display := func(t time.Time) string {

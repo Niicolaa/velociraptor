@@ -233,7 +233,7 @@ func (self *CryptoManager) getAuthState(
 		// key was added without one.
 		public_key, pres = self.Resolver.GetPublicKey(config_obj, client_id)
 		if !pres {
-			// We dont know who we are talking to so we can not trust
+			// We don't know who we are talking to so we can not trust
 			// them.
 			return false,
 				fmt.Errorf("No cert found for %s", cipher_metadata.Source)
@@ -454,9 +454,9 @@ func (self *CryptoManager) extractMessageInfo(
 
 // Serialize, compress and encrypt a single message list proto. NOTE:
 // When the client sends back bulk data, they pack messages into the
-// MessageList proto and call this function. Since they dont know in
+// MessageList proto and call this function. Since they don't know in
 // advance how large the compressed size is going to be, they need to
-// send multiple MessageList protos, each compressed separatly until
+// send multiple MessageList protos, each compressed separately until
 // there are enough to send.
 func (self *CryptoManager) EncryptMessageList(
 	message_list *crypto_proto.MessageList,

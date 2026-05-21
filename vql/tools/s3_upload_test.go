@@ -1,4 +1,4 @@
-package tools
+package tools_test
 
 import (
 	"fmt"
@@ -15,6 +15,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/vql/acl_managers"
 	"www.velocidex.com/golang/velociraptor/vql/filesystem"
+	"www.velocidex.com/golang/velociraptor/vql/tools"
 	"www.velocidex.com/golang/velociraptor/vtesting"
 	"www.velocidex.com/golang/velociraptor/vtesting/assert"
 
@@ -81,7 +82,7 @@ func (self *S3TestSuite) TestUpload() {
 	// env.
 	for i := 0; i < 10; i++ {
 		filename := fmt.Sprintf("hello_%d.txt", i)
-		row := (S3UploadFunction{}).Call(self.Ctx, scope,
+		row := (tools.S3UploadFunction{}).Call(self.Ctx, scope,
 			ordereddict.NewDict().
 				Set("accessor", "data").
 				Set("file", "hello world").
@@ -96,7 +97,7 @@ func (self *S3TestSuite) TestUpload() {
 	s3.SetPageSize(2)
 
 	result := []string{}
-	result_regex := regexp.MustCompile("/velociraptor/hello_\\d+.txt")
+	result_regex := regexp.MustCompile(`/velociraptor/hello_\d+.txt`)
 	snapshot := vtesting.GetMetrics(self.T(), "s3_ops_list_objects")
 
 	// We upload 10 files to the bucket.

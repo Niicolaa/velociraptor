@@ -247,7 +247,7 @@ func installService(
 		logger.Info("SetRecoveryActions() failed: %s", err)
 	}
 
-	// Try to create an event source but dont sweat it if it does
+	// Try to create an event source but don't sweat it if it does
 	// not work.
 	err = eventlog.InstallAsEventCreate(
 		"velociraptor", eventlog.Error|eventlog.Warning|eventlog.Info)
@@ -404,7 +404,7 @@ func loadClientConfig() (*config_proto.Config, error) {
 		WithWriteback().LoadAndValidate()
 	if err != nil {
 		// Config obj is not valid here, we can not actually
-		// log anything since we dont know where to send it so
+		// log anything since we don't know where to send it so
 		// prelog instead.
 		Prelog("Failed to load %v: %v will try again soon.\n", err, *config_path)
 		return nil, err

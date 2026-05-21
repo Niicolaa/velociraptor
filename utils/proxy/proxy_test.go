@@ -85,7 +85,7 @@ func TestProxyConfigured(t *testing.T) {
 		{in: "http://www.google.com", check: destIsNil(t)},
 		{in: "https://www.google.com", check: destIsNil(t)},
 
-		// For Microsoft go thropugh their proxy.
+		// For Microsoft go through their proxy.
 		{in: "http://www.microsoft.com", check: destMatches(t, "microsoft.com")},
 		{in: "https://www.microsoft.com", check: destMatches(t, "microsoft.com")},
 	})

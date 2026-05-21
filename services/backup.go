@@ -45,7 +45,7 @@ type BackupProvider interface {
 		container BackupContainerWriter) (<-chan vfilter.Row, error)
 
 	// This is the opposite of backup - it allows a provider to
-	// recover from an existing backup. Typcially providers need to
+	// recover from an existing backup. Typically providers need to
 	// clear their data and read new data from this channel. The
 	// provider may return stats about its operation.
 	Restore(ctx context.Context,
@@ -53,7 +53,7 @@ type BackupProvider interface {
 		in <-chan vfilter.Row) (BackupStat, error)
 }
 
-// Alows each provider to report the stats of the most recent
+// Allows each provider to report the stats of the most recent
 // operation.
 type BackupStat struct {
 	// Name of provider

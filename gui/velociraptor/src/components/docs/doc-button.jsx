@@ -16,7 +16,6 @@ import Alert from 'react-bootstrap/Alert';
 import Accordion from 'react-bootstrap/Accordion';
 import Badge from 'react-bootstrap/Badge';
 import parseHTML from '../core/sanitize.jsx';
-import { cleanupHTML } from '../core/sanitize.jsx';
 import hljs from 'highlight.js';
 import ToolViewer from '../tools/tool-viewer.jsx';
 import markdownit from 'markdown-it';
@@ -34,6 +33,7 @@ class Admonition extends Component {
     static propTypes = {
         type: PropTypes.string,
         caption: PropTypes.string,
+        children: PropTypes.node,
     }
 
     renderType = ()=>{
@@ -58,9 +58,7 @@ class Admonition extends Component {
                 <div className="caption">{ this.props.caption }</div>
               </Card.Header>
               <Card.Body>
-                <Card.Text>
-                  { this.props.children }
-                </Card.Text>
+                { this.props.children }
               </Card.Body>
             </Card>
         );
@@ -222,6 +220,7 @@ class HelpDialog extends Component {
         return (
             <Modal show={true}
                    dialogClassName="modal-70w"
+                   autoFocus={false}
                    onHide={this.props.onClose}>
               <Modal.Header closeButton>
                 <Modal.Title>{T("Search Documentation")}</Modal.Title>
@@ -234,7 +233,8 @@ class HelpDialog extends Component {
                         value={this.state.query}
                         onChange={e=>this.setState({query: e.target.value})}
                         as="input"
-                        placeholder={T("Search Docs")} />
+                        placeholder={T("Search Docs")}
+                        autoFocus={true} />
                       <TablePaginationControl
                         total_size={this.state.total_size}
                         start_row={this.state.start}
@@ -261,7 +261,7 @@ class HelpDialog extends Component {
                                    <Col sm="10">
                                      { _.map(crumbs, (c, idx)=>{
                                          return (
-                                             <>
+                                             <React.Fragment key={idx}>
                                                <a target="_blank"
                                                   className="breadcrumb"
                                                    href={c.url}
@@ -269,7 +269,7 @@ class HelpDialog extends Component {
                                                   { c.name }
                                                </a>
                                                <div className="breadcrumb-divider"/>
-                                             </>
+                                             </React.Fragment>
                                          );
                                      })}
                                      <a target="_blank" href={v.link}>

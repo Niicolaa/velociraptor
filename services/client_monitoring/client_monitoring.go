@@ -6,7 +6,7 @@
 
 // NOTE: The client's event table will be updated when the client's
 // table's version if one the following is changed:
-// 1. The global event table state was modified (eg. the user updated the GUI).
+// 1. The global event table state was modified (e.g.. the user updated the GUI).
 
 // 2. Any label was updated for that client which may have caused the
 // client to be added into the label group.
@@ -20,6 +20,8 @@ import (
 	"errors"
 	"sync"
 
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/utils/rand"
 
 	"github.com/Velocidex/ordereddict"
@@ -79,7 +81,7 @@ type ClientEventTable struct {
 // Checks to see if we need to update the client event table. Each
 // client's table version is the timestamp when it received the event
 // table update. Clients need to renew their table if:
-// 1. Their version is behind the the global table version, or
+// 1. Their version is behind the global table version, or
 // 2. Their version is behind the latest label update.
 //
 // When the table is refreshed its version is set to the current
@@ -254,7 +256,12 @@ func (self *ClientEventTable) setClientMonitoringState(
 				Set("principal", principal).
 				Set("artifact", "ClientEventTable").
 				Set("op", "set"),
-		}, "Server.Internal.ArtifactModification", "", "")
+		},
+		services.JournalOptions{
+			ArtifactName: "Server.Internal.ArtifactModification",
+			ArtifactType: artifact_modes.MODE_INTERNAL,
+			Username:     constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
+		})
 	if err != nil {
 		return err
 	}
@@ -332,7 +339,7 @@ func (self *ClientEventTable) GetClientUpdateEventTableMessage(
 	}
 
 	// Add a bit of randomness to the max wait to spread out
-	// client's updates so they do not syncronize load on the
+	// client's updates so they do not synchronize load on the
 	// server.
 	for _, event := range result.Event {
 		// Ensure responses do not come back too quickly
@@ -367,7 +374,7 @@ func (self *ClientEventTable) ProcessServerMetadataModificationEvent(
 
 	// Only trigger on server metadata changes
 	client_id, pres := event.GetString("client_id")
-	if !pres || client_id != "server" {
+	if !pres || client_id != constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		return
 	}
 
@@ -407,7 +414,7 @@ func (self *ClientEventTable) ProcessArtifactModificationEvent(
 		// anything but this is hard to know - not only do we need to
 		// look at the artifact in the event table but all
 		// dependencies as well. So for now we just recompile the
-		// event table when any artifact is changed. We dont expect
+		// event table when any artifact is changed. We don't expect
 		// this to be too frequent.
 		return true
 	}
@@ -568,12 +575,12 @@ func (self *ClientEventTable) Start(
 	}()
 
 	events, cancel := journal.Watch(
-		ctx, "Server.Internal.ArtifactModification",
+		ctx, artifacts.ARTIFACT_MODIFICATION,
 		"client_monitoring_service")
 	defer cancel()
 
 	metadata_mod_event, metadata_mod_event_cancel := journal.Watch(
-		ctx, "Server.Internal.MetadataModifications",
+		ctx, artifacts.CLIENT_METADATA_MODIFICATION,
 		"client_monitoring_service")
 	defer metadata_mod_event_cancel()
 

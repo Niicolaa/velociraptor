@@ -34,7 +34,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/hunt_dispatcher"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -100,12 +99,12 @@ func (self HuntsPlugin) Call(
 		}
 
 		// Show all hunts.
-		var hunts []*api_proto.Hunt
+		var hunts []*ordereddict.Dict
 
 		err = hunt_dispatcher.ApplyFuncOnHunts(
 			ctx, services.AllHunts,
 			func(hunt *api_proto.Hunt) error {
-				hunts = append(hunts, hunt)
+				hunts = append(hunts, json.ConvertProtoToOrderedDict(hunt))
 				return nil
 			})
 		if err != nil {
@@ -117,7 +116,7 @@ func (self HuntsPlugin) Call(
 			select {
 			case <-ctx.Done():
 				return
-			case output_chan <- json.ConvertProtoToOrderedDict(hunt_obj):
+			case output_chan <- hunt_obj:
 			}
 		}
 	}()
@@ -130,7 +129,7 @@ func (self HuntsPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vf
 		Name:     "hunts",
 		Doc:      "Retrieve the list of hunts.",
 		ArgType:  type_map.AddType(scope, &HuntsPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
 	}
 }
 
@@ -357,7 +356,8 @@ func (self HuntResultsPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMa
 		Name:     "hunt_results",
 		Doc:      "Retrieve the results of a hunt.",
 		ArgType:  type_map.AddType(scope, &HuntResultsPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Version:  2,
 	}
 }
 
@@ -453,7 +453,8 @@ func (self HuntFlowsPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap)
 		Name:     "hunt_flows",
 		Doc:      "Retrieve the flows launched by a hunt.",
 		ArgType:  type_map.AddType(scope, &HuntFlowsPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Version:  2,
 	}
 }
 

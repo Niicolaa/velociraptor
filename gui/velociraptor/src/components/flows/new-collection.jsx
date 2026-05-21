@@ -974,7 +974,7 @@ class NewCollectionWizard extends React.Component {
                 }
 
                 // If the value is cleared just let the artifact use
-                // its own default value and dont mention it in the
+                // its own default value and don't mention it in the
                 // request at all.
                 if (v !== "") {
                     spec.parameters.env.push({key: k, value: v});

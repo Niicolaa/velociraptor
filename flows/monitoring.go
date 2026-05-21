@@ -154,9 +154,12 @@ func flushMonitoringLogs(
 			ctx,
 			config_obj,
 			jsonl_buff.Bytes(), jsonl_buff.row_count,
-			query_name,
-			collection_context.ClientId,
-			collection_context.SessionId)
+			services.JournalOptions{
+				ArtifactName: query_name,
+				Username:     collection_context.ClientId,
+				ClientId:     collection_context.ClientId,
+				FlowId:       collection_context.SessionId,
+			})
 		if err != nil {
 			return err
 		}

@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/file_store/api"
 	"www.velocidex.com/golang/velociraptor/file_store/directory"
 	"www.velocidex.com/golang/velociraptor/logging"
@@ -53,7 +54,7 @@ var (
 	metricTotalSyncWrites = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "memcache_filestore_total_sync_writes",
-			Help: "Total number of syncronous writer operations done on the memcache filestore",
+			Help: "Total number of synchronous writer operations done on the memcache filestore",
 		})
 
 	metricTotalWrites = promauto.NewCounter(
@@ -130,7 +131,7 @@ type MemcacheFileWriter struct {
 	flushing bool
 
 	// All writers need to receive a concurrency slot before
-	// performing IO - this ensures we do not have too many inflight
+	// performing IO - this ensures we do not have too many in-flight
 	// IOPs at the same time and allows us to control pressure on the
 	// delegate filestore.
 	concurrency *utils.Concurrency
@@ -204,7 +205,12 @@ func (self *MemcacheFileWriter) WriteCompressed(
 	data []byte,
 	logical_offset uint64,
 	uncompressed_size int) (int, error) {
-	uncompressed, err := utils.Uncompress(context.Background(), data)
+	if uncompressed_size > constants.MEMORY_LARGE {
+		return 0, utils.MemoryError
+	}
+
+	uncompressed, err := utils.UncompressWithLimit(
+		context.Background(), data, int64(uncompressed_size))
 	if err != nil {
 		return 0, err
 	}
@@ -536,7 +542,7 @@ type MemcacheFileStore struct {
 	// successive writes are merged into larger ones.
 	min_age time.Duration
 
-	// Maxmimum time a closed writer will be kept in memory.
+	// Maximum time a closed writer will be kept in memory.
 	max_age time.Duration
 
 	closed bool
@@ -666,7 +672,7 @@ func (self *MemcacheFileStore) WriteFileWithCompletion(
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	// The entire filestore is closed due to shutdown, we dont accept
+	// The entire filestore is closed due to shutdown, we don't accept
 	// more writers.
 	if self.closed {
 		return nil, currentlyShuttingDownError
@@ -707,7 +713,7 @@ func (self *MemcacheFileStore) WriteFileWithCompletion(
 		result.AddCompletion(completion)
 	}
 
-	// Turn the call into syncronous if our memory is exceeded.
+	// Turn the call into synchronous if our memory is exceeded.
 	err := self.reduceMemoryToLimit()
 	if err != nil {
 		return nil, err
@@ -743,7 +749,7 @@ func (self *MemcacheFileStore) reduceMemoryToLimit() error {
 	})
 
 	for _, w := range sizes {
-		// Flush synchrously while pushing back against our
+		// Flush synchronously while pushing back against our
 		// caller. This ensures when we return from here there is
 		// enough space to keep writing.
 		err := w.FlushSync()

@@ -23,12 +23,12 @@ import (
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/result_sets"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/hunt_dispatcher"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/server/clients"
 	"www.velocidex.com/golang/vfilter"
@@ -204,7 +204,7 @@ func (self ImportCollectionFunction) importHunt(
 						FlowId:   flow.SessionId,
 					},
 				})},
-			"Server.Internal.HuntModification", flow.ClientId, "")
+			artifacts.HUNT_MODIFICATIONS)
 	}
 
 	return hunt_info, nil
@@ -310,7 +310,7 @@ func (self ImportCollectionFunction) importFlow(
 	for _, artifact := range collection_context.ArtifactsWithResults {
 		artifact_path_manager := artifacts.NewArtifactPathManagerWithMode(
 			config_obj, client_id, collection_context.SessionId,
-			artifact, paths.MODE_CLIENT)
+			artifact, artifact_modes.MODE_CLIENT)
 		err = self.copyResultSet(ctx, config_obj, scope,
 			accessor, root.Append("results", artifact+".json"),
 			artifact_path_manager.Path(),
@@ -346,9 +346,9 @@ func (self ImportCollectionFunction) importFlow(
 	}
 	err = journal.PushRowsToArtifact(ctx, config_obj,
 		[]*ordereddict.Dict{row},
-		"System.Flow.Completion", collection_context.ClientId,
-		collection_context.SessionId,
-	)
+		artifacts.FLOW_COMPLETION.
+			WithClientId(collection_context.ClientId).
+			WithFlowId(collection_context.SessionId))
 
 	return collection_context, err
 }
@@ -401,33 +401,42 @@ func (self ImportCollectionFunction) ensureClientId(
 	scope vfilter.Scope,
 	config_obj *config_proto.Config,
 	client_id string,
-	hostname string) error {
+	hostname string) (string, error) {
 
 	// Check if the client is already known.
 	client_info_manager, err := services.GetClientInfoManager(config_obj)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check to see if we know about this client id. If we do
 	// then just return the same client id as in the
 	// container.
-	_, err = client_info_manager.Get(ctx, client_id)
+	record, err := client_info_manager.Get(ctx, client_id)
 	if err == nil {
-		return nil
+		return record.ClientId, nil
 	}
 
-	// If we get here we dont know the client so we just create a
+	// If we get here we don't know the client so we just create a
 	// new one with this client id
 
 	// Client is not known, create it.
-	clients.NewClientFunction{}.Call(ctx, scope, ordereddict.NewDict().
-		Set("client_id", client_id).
-		Set("first_seen_at", time.Now()).
-		Set("last_seen_at", time.Now()).
-		Set("hostname", hostname))
+	res := clients.NewClientFunction{}.Call(
+		ctx, scope, ordereddict.NewDict().
+			Set("client_id", client_id).
+			Set("first_seen_at", time.Now()).
+			Set("last_seen_at", time.Now()).
+			Set("hostname", hostname))
 
-	return nil
+	res_dict, ok := res.(*ordereddict.Dict)
+	if utils.IsNil(res) || utils.IsNil(res_dict) || !ok {
+		return "", fmt.Errorf("Failed to create client.")
+	}
+	client_id, pres := res_dict.GetString("client_id")
+	if !pres || client_id == "" {
+		return "", fmt.Errorf("Failed to create client.")
+	}
+	return client_id, nil
 }
 
 // Reads the client_info.json and attempts to find a client id that
@@ -460,7 +469,7 @@ func (self ImportCollectionFunction) getClientIdFromHostnameOrCollection(
 			hostname = collection_hostname
 		}
 
-		// We dont know this client id - Search for a client id we do
+		// We don't know this client id - Search for a client id we do
 		// know, that has the same hostname. This happens in importing
 		// the offline collection which does not contain a client id.
 		if client_id == "" && hostname != "" {
@@ -517,50 +526,8 @@ func (self ImportCollectionFunction) getClientIdFromHostnameOrCollection(
 		client_id = clients.NewClientId()
 		scope.Log("Creating a new client id '%v'", client_id)
 	}
-	return client_id, self.ensureClientId(
+	return self.ensureClientId(
 		ctx, scope, config_obj, client_id, hostname)
-}
-
-func (self ImportCollectionFunction) checkClientIdExists(
-	ctx context.Context,
-	config_obj *config_proto.Config,
-	scope vfilter.Scope,
-	client_info *services.ClientInfo) error {
-
-	// This is a well known client
-	if client_info.ClientId == "server" {
-		return nil
-	}
-
-	client_info_manager, err := services.GetClientInfoManager(config_obj)
-	if err != nil {
-		return err
-	}
-
-	_, err = client_info_manager.Get(ctx, client_info.ClientId)
-	if err == nil {
-		return nil
-	}
-
-	scope.Log("Info: ClientId %v (%v) not found, creating a new client",
-		client_info.ClientId, client_info.Hostname)
-
-	// If we made it here, client id doesn't exist, so then we can
-	// create a new client
-	res := clients.NewClientFunction{}.Call(ctx, scope, ordereddict.NewDict().
-		Set("client_id", client_info.ClientId).
-		Set("first_seen_at", utils.GetTime().Now()).
-		Set("last_seen_at", utils.GetTime().Now()).
-		Set("hostname", client_info.Hostname).
-		Set("labels", client_info.Labels).
-		Set("os", client_info.System).
-		Set("mac_addresses", client_info.MacAddresses))
-
-	if utils.IsNil(res) {
-		return errors.New("Failed to create new client.")
-	}
-
-	return nil
 }
 
 func (self ImportCollectionFunction) copyResultSet(
@@ -595,7 +562,7 @@ func (self ImportCollectionFunction) copyResultSet(
 
 	flush := func() {
 		if count > 0 {
-			rs_writer.WriteJSONL(buffer.Bytes(), count)
+			_ = rs_writer.WriteJSONL(buffer.Bytes(), count)
 			count = 0
 			buffer.Reset()
 		}
@@ -704,10 +671,12 @@ func (self ImportCollectionFunction) copyFile(
 
 func (self ImportCollectionFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "import_collection",
-		Doc:      "Imports an offline collection zip file (experimental).",
-		ArgType:  type_map.AddType(scope, &ImportCollectionFunctionArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.COLLECT_SERVER, acls.FILESYSTEM_READ).Build(),
+		Name:    "import_collection",
+		Doc:     "Imports an offline collection zip file (experimental).",
+		ArgType: type_map.AddType(scope, &ImportCollectionFunctionArgs{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.COLLECT_SERVER, acls.FILESYSTEM_READ).Build(),
+		Version: 2,
 	}
 }
 

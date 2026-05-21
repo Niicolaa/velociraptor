@@ -97,7 +97,7 @@ func NewServer(ctx context.Context,
 		return nil, err
 	}
 
-	// This number mainly affects memory use during large tranfers
+	// This number mainly affects memory use during large transfers
 	// as it controls the number of concurrent clients that may be
 	// transferring data (each will use some memory to
 	// buffer). This should not be too large relative to the
@@ -241,10 +241,16 @@ func (self *Server) Process(
 
 	// Older clients
 	if message_info.Version < constants.CLIENT_API_VERSION_0_6_8 {
+		if config_obj.Security == nil ||
+			!config_obj.Security.AllowAncientClients {
+			// Completely reject the message.
+			return nil, 0, utils.InvalidArgError
+		}
+
 		runner := flows.NewLegacyFlowRunner(config_obj)
 		defer runner.Close(ctx)
-
 		err = runner.ProcessMessages(ctx, message_info)
+
 	} else {
 
 		// Newer clients maintain flow state on the client so need a

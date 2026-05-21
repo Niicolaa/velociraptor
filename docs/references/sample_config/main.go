@@ -22,7 +22,7 @@ var (
 		"Yaml filename to read (server.config.yaml)").Required().String()
 	tagRegEx = regexp.MustCompile("json:\"([^,]+)")
 
-	// Usually deprecated fields we dont want people to use so we dont
+	// Usually deprecated fields we don't want people to use so we don't
 	// document them.
 	hidden_fields = []string{
 		"sub_authenticators",
@@ -96,6 +96,8 @@ var (
 		"GUI.links.disabled",
 		"GUI.authenticator.oidc_issuer",
 		"GUI.authenticator.claims.roles",
+		"GUI.authenticator.claims.allow_unverified_email",
+		"GUI.authenticator.claims.override_acls",
 		"GUI.authenticator.oidc_debug",
 		"Frontend.use_plain_http",
 		"Frontend.require_client_certificates",
@@ -135,6 +137,9 @@ var (
 		"security.secrets_dek",
 		"security.vql_must_use_secrets",
 		"security.disable_inventory_service_external_access",
+
+		// Fields that should not really be set so they are hidden
+		"security.allow_ancient_clients",
 	}
 )
 

@@ -225,7 +225,7 @@ func (a *bufferedAuthReader) Read(b []byte) (int, error) {
 	if a.err != nil {
 		return 0, a.err
 	}
-	// make sure we have auth'ed before we send any data
+	// make sure we have authed before we send any data
 	if !a.auth {
 		_, err := io.Copy(a.buf, a.data)
 		if err != nil {

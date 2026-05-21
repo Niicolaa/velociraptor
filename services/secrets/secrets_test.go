@@ -87,7 +87,7 @@ func (self *SecretsTestSuite) TestSecretsService() {
 			"config/secrets/"+constants.SSH_PRIVATE_KEY+"/MySecret"))
 
 	// User2 asks for the secret again - this time denied
-	secret_data, err = secrets.GetSecret(
+	_, err = secrets.GetSecret(
 		self.Ctx, "User2", constants.SSH_PRIVATE_KEY, "MySecret")
 	assert.Error(self.T(), err)
 	assert.Contains(self.T(), err.Error(), `Permission Denied`)
@@ -114,6 +114,19 @@ func verifyData(
 	data, pres := result.Get("encryptedSecret")
 	assert.True(t, pres)
 	assert.True(t, len(data.(string)) > 10)
+}
+
+func (self *SecretsTestSuite) TestInvalidSecret() {
+	secrets, err := services.GetSecretsService(self.ConfigObj)
+	assert.NoError(self.T(), err)
+
+	// Add an invalid secret - http requires headers to be valid YAML
+	scope := vql_subsystem.MakeScope()
+	err = secrets.AddSecret(self.Ctx, scope,
+		constants.HTTP_SECRETS, "MySecret", ordereddict.NewDict().
+			Set("url", "http://www.example.com/").
+			Set("extra_headers", "   sdkjkdsjh"))
+	assert.Error(self.T(), err)
 }
 
 func getSecretFromStore(

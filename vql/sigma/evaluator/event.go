@@ -18,7 +18,7 @@ import (
 // in calling the field mapping lambda which can slow things down.
 
 // Since we are checking the same event against many rules, it is safe
-// to assume that the field mapping lambda is invarient with respect
+// to assume that the field mapping lambda is invariant with respect
 // to the rules. Therefore we can cache it between rule evaluation.
 
 // This significantly speeds up matching since we avoid calling the
@@ -65,10 +65,10 @@ func (self *Event) Get(key string) (interface{}, bool) {
 	}
 
 	// The following supports the special case where the field has dot
-	// notation. This aleviate the need to have pre-defined field
+	// notation. This alleviates the need to have pre-defined field
 	// mappings and allows us to access fields directly. We only
 	// support dict style events this way. This method is actually
-	// faster than the VQL lambda as we dont need to use VQL scopes to
+	// faster than the VQL lambda as we don't need to use VQL scopes to
 	// access the fields.
 	var value interface{} = self.Dict
 

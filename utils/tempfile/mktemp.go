@@ -123,7 +123,7 @@ func SetTempfile(config_obj *config_proto.Config) {
 			logger.Error("Unable to write to configured temp dir %v - falling back to %v",
 				tmpdir, os.TempDir())
 
-			// No we dont have permission there, fall back to system
+			// No we don't have permission there, fall back to system
 			// default, that is the best we can do - we hope we can
 			// write there.
 			tmpdir = os.TempDir()

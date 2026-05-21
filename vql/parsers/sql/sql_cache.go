@@ -17,7 +17,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services/debug"
 	utils "www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/utils/tempfile"
 	utils_tempfile "www.velocidex.com/golang/velociraptor/utils/tempfile"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -214,7 +213,7 @@ func (self *sqlCache) GetHandleSqlite(ctx context.Context,
 		return handle, nil
 	}
 
-	// Check the header quickly to ensure that we dont copy the
+	// Check the header quickly to ensure that we don't copy the
 	// file needlessly. If the file does not exist, we allow a
 	// connection because this will create a new file.
 	header_ok, err := checkSQLiteHeader(scope, accessor, arg.Filename)
@@ -258,7 +257,7 @@ func (self *sqlCache) GetHandleSqlite(ctx context.Context,
 			filename_with_options += "?" + parts[1]
 		}
 
-		// If we failed to open the copy, we dont make another copy -
+		// If we failed to open the copy, we don't make another copy -
 		// just fail!
 		sql_handle, err = sql.Open("sqlite3", filename_with_options)
 		if err == nil {
@@ -328,7 +327,7 @@ func (self *sqlCache) GetHandleSqlite(ctx context.Context,
 		DB:      sql_handle,
 		created: utils.Now(),
 		scope:   scope,
-		tmpfile: tempfile, // This will be empty if we didnt use a temp file.
+		tmpfile: tempfile, // This will be empty if we didn't use a temp file.
 		in_use:  1,        // We have one user - our caller.
 	}
 	self.cache[key] = result
@@ -408,7 +407,7 @@ func _MakeTempfile(ctx context.Context,
 	scope vfilter.Scope) (
 	string, error) {
 
-	tmpfile, err := tempfile.TempFile("tmp*.sqlite")
+	tmpfile, err := utils_tempfile.TempFile("tmp*.sqlite")
 	if err != nil {
 		return "", err
 	}

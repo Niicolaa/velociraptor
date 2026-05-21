@@ -40,7 +40,7 @@ export class AddTimelineDialog extends React.Component {
 
     addTimeline = ()=>{
         if (this.state.timeline) {
-            // Inject the timeline name in the scope so we dont have
+            // Inject the timeline name in the scope so we don't have
             // to escape it for the template.
             this.props.addCell(
                 '{{ Scope "Timeline" | Timeline }}', "Markdown",

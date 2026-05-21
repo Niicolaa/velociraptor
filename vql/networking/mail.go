@@ -29,7 +29,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -87,6 +86,7 @@ func (self MailPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfi
 		Name:    "mail",
 		Doc:     "Send Email to a remote server.",
 		ArgType: type_map.AddType(scope, &MailPluginArgs{}),
+		Version: 2,
 	}
 }
 
@@ -250,7 +250,7 @@ func (self *MailFunction) maybeForceSecrets(
 	ctx context.Context, scope vfilter.Scope,
 	arg *MailPluginArgs) error {
 
-	// Not running on the server, secrets dont work.
+	// Not running on the server, secrets don't work.
 	config_obj, ok := vql_subsystem.GetServerConfig(scope)
 	if !ok {
 		return nil
@@ -311,10 +311,12 @@ func (self MailFunction) mergeSecretToRequest(
 
 func (self MailFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "mail",
-		Doc:      "Send Email to a remote server.",
-		ArgType:  type_map.AddType(scope, &MailPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
+		Name:    "mail",
+		Doc:     "Send Email to a remote server.",
+		ArgType: type_map.AddType(scope, &MailPluginArgs{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.NETWORK).Build(),
+		Version: 2,
 	}
 }
 

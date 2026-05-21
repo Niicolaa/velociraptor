@@ -14,7 +14,7 @@ import (
 
 // Parse a value into an OSPath. This is used by VQL functions to
 // accept an OSPath object from VQL as an argument. If the argument is
-// already a *OSPath then we dont need to do anything and we just
+// already a *OSPath then we don't need to do anything and we just
 // reuse it saving us the effort of serializing and unserializing the
 // same thing. We also accept a string path and automatically convert
 // it to an OSPath.

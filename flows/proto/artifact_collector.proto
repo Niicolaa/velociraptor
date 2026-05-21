@@ -40,9 +40,9 @@ message ArtifactCollectorArgs {
     // If set we send an urgent request to the client.
     bool urgent = 21;
 
-    // Deprecated: Old way of specifying the artifacts consist of
-    // shared parameters within a list of artifacts (i.e. all
-    // artifacts share same scope).
+    // Old way of specifying the artifacts consist of shared
+    // parameters within a list of artifacts (i.e. all artifacts share
+    // same scope).
     repeated string artifacts = 2 [(sem_type) = {
             description: "The artifacts to launch.",
             friendly_name: "Launch",
@@ -133,6 +133,12 @@ message ArtifactCollectorContext {
     string client_id = 27;
     string session_id = 13;
     ArtifactCollectorArgs request = 11;
+
+    // When a flow is relaunched, we store the old requests in this
+    // parameter. Relaunching a flow is not common but can be done in
+    // order to fetch new data but still keep the data in the same
+    // flow.
+    repeated ArtifactCollectorContext previous_flows = 38;
 
     // If an error occurs this is the backtrace.
     string backtrace = 1;

@@ -5,8 +5,8 @@ import (
 
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -72,6 +72,7 @@ func (self *DeleteTimelineFunction) Call(ctx context.Context,
 		return vfilter.Null{}
 	}
 
+	principal := vql_subsystem.GetPrincipal(scope)
 	journal, err := services.GetJournal(config_obj)
 	if err == nil {
 		journal.PushRowsToArtifactAsync(ctx, config_obj,
@@ -80,7 +81,7 @@ func (self *DeleteTimelineFunction) Call(ctx context.Context,
 				Set("SuperTimelineName", arg.Timeline).
 				Set("Component", arg.Component).
 				Set("Action", "Delete"),
-			"Server.Internal.TimelineAdd")
+			artifacts.TIMELINE_ADD.WithUser(principal))
 	}
 
 	return true
@@ -92,7 +93,8 @@ func (self DeleteTimelineFunction) Info(
 		Name:     "timeline_delete",
 		Doc:      "Delete a super timeline.",
 		ArgType:  type_map.AddType(scope, &DeleteTimelineFunctionArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.NOTEBOOK_EDITOR).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.NOTEBOOK_EDITOR).Build(),
+		Version:  2,
 	}
 }
 

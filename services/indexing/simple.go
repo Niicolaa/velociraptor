@@ -13,7 +13,7 @@ import (
 // The simple index is a legacy index that is ok for small number of
 // items but it is mostly kept for backwards compatibility. Instead of
 // partitioning the index, the entire path is kept as a single
-// path. This is ok for smalish number of items but does not really
+// path. This is ok for smallish number of items but does not really
 // scale.
 
 // Update the posting list index. Searching for any of the

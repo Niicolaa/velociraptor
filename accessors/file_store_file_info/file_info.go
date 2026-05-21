@@ -118,7 +118,7 @@ func (self *FileStoreFileInfo) IsLink() bool {
 	return self.Mode()&os.ModeSymlink != 0
 }
 
-// Filestores do not implementat links
+// Filestores do not implement links
 func (self *FileStoreFileInfo) GetLink() (*accessors.OSPath, error) {
 	return nil, errors.New("Not implemented")
 }

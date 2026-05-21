@@ -326,7 +326,7 @@ export default class NewHuntWizard extends React.Component {
             hunt_expiry_hours = 7 * 24;
         };
 
-        // Calcuate the default expiry to 1 week from now.
+        // Calculate the default expiry to 1 week from now.
         expiry.setTime(expiry.getTime() + hunt_expiry_hours * hour);
 
         if (request) {

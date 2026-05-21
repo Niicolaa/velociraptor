@@ -218,7 +218,7 @@ func (self *TestSuite) testScheduleCollection() (closer func()) {
 			logging.GetMemoryLogs())
 	})
 
-	// Schdule a collection on the client
+	// Schedule a collection on the client
 	manager, err := services.GetRepositoryManager(self.ConfigObj)
 	assert.NoError(self.T(), err)
 

@@ -48,7 +48,7 @@ import (
 type EventTable struct {
 	mu sync.Mutex
 
-	// Context for cancelling all inflight queries in this event
+	// Context for cancelling all in-flight queries in this event
 	// table.
 	Ctx    context.Context
 	cancel func()
@@ -102,7 +102,7 @@ func (self *EventTable) Equal(events []*actions_proto.VQLCollectorArgs) bool {
 	return true
 }
 
-// Teardown all the current quries. Blocks until they all shut down.
+// Teardown all the current queries. Blocks until they all shut down.
 func (self *EventTable) Close() {
 	self.mu.Lock()
 	defer self.mu.Unlock()
@@ -154,7 +154,7 @@ func (self *EventTable) Update(
 	// If the new update is identical to the old queries we wont
 	// restart. This can happen e.g. if the server changes label
 	// groups and recalculates the table version but the actual
-	// queries dont end up changing.
+	// queries don't end up changing.
 	if self.Equal(table.Event) {
 		logger := logging.GetLogger(config_obj, &logging.ClientComponent)
 		logger.Info("Client event query update %v did not "+
@@ -184,7 +184,7 @@ func (self *EventTable) Update(
 	return nil, true /* changed */
 }
 
-// Make a copy of the event table and appand any config enforced
+// Make a copy of the event table and append any config-enforced
 // additional event queries.
 func (self *EventTable) GetEventQueries(
 	ctx context.Context,
@@ -273,7 +273,7 @@ func (self *EventTable) StartQueries(
 				event.Timeout = 12 * 60 * 60
 			}
 
-			// Dont heartbeat too often for event queries
+			// Don't heartbeat too often for event queries
 			// - the log generates un-neccesary traffic.
 			if event.Heartbeat == 0 {
 				event.Heartbeat = 300 // 5 minutes
@@ -309,7 +309,7 @@ func (self *EventTable) RunQuery(
 		refresh := utils.Jitter(time.Second * time.Duration(refresh_timeout))
 
 		// Start the query - if it is an event query this will not
-		// complete until we cancell it due to refresh. If it is not
+		// complete until we cancel it due to refresh. If it is not
 		// an event query, it will complete sooner but we wont start
 		// it again until the refresh time.
 		wg.Add(1)

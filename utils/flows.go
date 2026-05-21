@@ -66,7 +66,7 @@ func SetFlowIdForTests(id string) func() {
 // in order to get reproducible IDs for various things. It is
 // important to ensure the ID generator is only reset once by a single
 // calling thread. Otherwise this introduces test flakeyness. We
-// ensure this happens by hard panicing if it is called multiple
+// ensure this happens by hard panicking if it is called multiple
 // times. Tests should be refactored to only call this once from the
 // main thread, and call the closer function when done.
 func SetIdGenerator(gen IdGenerator) func() {

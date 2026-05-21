@@ -61,7 +61,7 @@ func (self *TestSuite) TestSQLite() {
 	defer os.Remove(tempfile.Name())
 
 	// Keep all the logging messages in a string so we can check
-	// whats happening below.
+	// what's happening below.
 	log_buffer := &strings.Builder{}
 
 	builder := services.ScopeBuilder{

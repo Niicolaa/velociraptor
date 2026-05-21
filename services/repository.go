@@ -63,7 +63,7 @@ func GetRepositoryManager(config_obj *config_proto.Config) (RepositoryManager, e
 	return org_manager.Services(config_obj.OrgId).RepositoryManager()
 }
 
-// Make it easier to build a query scope using the aritfact
+// Make it easier to build a query scope using the artifact
 // repository.
 type ScopeBuilder struct {
 	// In server context this contains the full server config required
@@ -165,6 +165,8 @@ type RepositoryManager interface {
 		config_obj *config_proto.Config, principal, name string) error
 
 	ReformatVQL(ctx context.Context, artifact_yaml string) (string, error)
+
+	Flush(ctx context.Context, config_obj *config_proto.Config) error
 }
 
 type MockablePlugin interface {

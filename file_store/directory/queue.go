@@ -1,7 +1,7 @@
 // A Queue manager that uses files on disk.
 
 // The queue manager is a broker between writers and readers. Writers
-// want to emit a message to a queue with minimumal delay, and have
+// want to emit a message to a queue with minimal delay, and have
 // the message dispatched to all readers with minimal latency.
 
 // A memory queue simply pushes the message to all reader's via a
@@ -154,14 +154,14 @@ func (self *QueuePool) getRegistrations(vfs_path string) []*Listener {
 	return nil
 }
 
-func (self *QueuePool) Broadcast(vfs_path string, row *ordereddict.Dict) {
+func (self *QueuePool) Broadcast(vfs_path string, source string, row *ordereddict.Dict) {
 	// Ensure we do not hold the lock for very long here.
 	for _, item := range self.getRegistrations(vfs_path) {
-		item.Send(row)
+		item.Send(row.Update("_Source", source))
 	}
 }
 
-func (self *QueuePool) BroadcastJsonl(vfs_path string, jsonl []byte) {
+func (self *QueuePool) BroadcastJsonl(vfs_path string, source string, jsonl []byte) {
 	// Ensure we do not hold the lock for very long here.
 	registrations := self.getRegistrations(vfs_path)
 	if len(registrations) > 0 {
@@ -171,6 +171,7 @@ func (self *QueuePool) BroadcastJsonl(vfs_path string, jsonl []byte) {
 		rows, err := utils.ParseJsonToDicts(jsonl)
 		if err == nil {
 			for _, row := range rows {
+				row.Set("_Source", source)
 				for _, item := range registrations {
 					item.Send(row)
 				}
@@ -213,18 +214,18 @@ func (self *DirectoryQueueManager) Debug() *ordereddict.Dict {
 
 // Sends the events without writing them to the filestore.
 func (self *DirectoryQueueManager) Broadcast(
-	path_manager api.PathManager, dict_rows []*ordereddict.Dict) {
+	path_manager api.PathManager, source string, dict_rows []*ordereddict.Dict) {
 	for _, row := range dict_rows {
 		// Set a timestamp per event for easier querying.
 		row.Set("_ts", int(utils.GetTime().Now().Unix()))
-		self.queue_pool.Broadcast(path_manager.GetQueueName(), row)
+		self.queue_pool.Broadcast(path_manager.GetQueueName(), source, row)
 	}
 }
 
 func (self *DirectoryQueueManager) PushEventRows(
-	path_manager api.PathManager, dict_rows []*ordereddict.Dict) error {
+	path_manager api.PathManager, source string, dict_rows []*ordereddict.Dict) error {
 
-	// Writes are asyncronous.
+	// Writes are asynchronous.
 	rs_writer, err := result_sets.NewTimedResultSetWriter(
 		self.config_obj, path_manager, json.DefaultEncOpts(),
 		utils.BackgroundWriter)
@@ -236,16 +237,17 @@ func (self *DirectoryQueueManager) PushEventRows(
 	for _, row := range dict_rows {
 		// Set a timestamp per event for easier querying.
 		row.Set("_ts", int(utils.GetTime().Now().Unix()))
-		rs_writer.Write(row)
-		self.queue_pool.Broadcast(path_manager.GetQueueName(), row)
+		rs_writer.Write(row.Set("_Source", source))
+		self.queue_pool.Broadcast(path_manager.GetQueueName(), source, row)
 	}
 	return nil
 }
 
 func (self *DirectoryQueueManager) PushEventJsonl(
-	path_manager api.PathManager, jsonl []byte, row_count int) error {
+	path_manager api.PathManager, source string,
+	jsonl []byte, row_count int) error {
 
-	// Writes are asyncronous.
+	// Writes are asynchronous.
 	rs_writer, err := result_sets.NewTimedResultSetWriter(
 		self.config_obj, path_manager, json.DefaultEncOpts(),
 		utils.BackgroundWriter)
@@ -256,8 +258,10 @@ func (self *DirectoryQueueManager) PushEventJsonl(
 
 	jsonl = json.AppendJsonlItem(jsonl, "_ts",
 		int(utils.GetTime().Now().Unix()))
+	jsonl = json.AppendJsonlItem(jsonl, "_Source", source)
+
 	rs_writer.WriteJSONL(jsonl, row_count)
-	self.queue_pool.BroadcastJsonl(path_manager.GetQueueName(), jsonl)
+	self.queue_pool.BroadcastJsonl(path_manager.GetQueueName(), source, jsonl)
 
 	return nil
 }

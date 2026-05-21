@@ -27,7 +27,6 @@ import (
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/services"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/acl_managers"
 	"www.velocidex.com/golang/velociraptor/vql/tools/collector"
@@ -38,6 +37,7 @@ import (
 
 type ScheduleCollectionFunctionArg struct {
 	ClientId     string            `vfilter:"required,field=client_id,doc=The client id to schedule a collection on"`
+	FlowId       string            `vfilter:"optional,field=flow_id,doc=If a flow id is specified we do not create a new flow, but instead add the collection to this flow."`
 	Artifacts    []string          `vfilter:"required,field=artifacts,doc=A list of artifacts to collect"`
 	Env          *ordereddict.Dict `vfilter:"optional,field=env,doc=Parameters to apply to the artifact (an alternative to a full spec)"`
 	Spec         *ordereddict.Dict `vfilter:"optional,field=spec,doc=Parameters to apply to the artifacts"`
@@ -64,7 +64,7 @@ func (self *ScheduleCollectionFunction) Call(ctx context.Context,
 		return vfilter.Null{}
 	}
 
-	// If a full spec is provided we dont need to provide the
+	// If a full spec is provided we don't need to provide the
 	// artifacts again.
 	if arg.Spec != nil && len(arg.Artifacts) == 0 {
 		arg.Artifacts = arg.Spec.Keys()
@@ -87,7 +87,7 @@ func (self *ScheduleCollectionFunction) Call(ctx context.Context,
 	// COLLECT_CLIENT for clients
 	// COLLECT_SERVER for server
 	// COLLECT_BASIC for artifacts with the basic metadata set
-
+	// SERVER_ADMIN to append to a flow
 	acl_manager, ok := artifacts.GetACLManager(scope)
 	if !ok {
 		acl_manager = acl_managers.NullACLManager{}
@@ -107,7 +107,7 @@ func (self *ScheduleCollectionFunction) Call(ctx context.Context,
 			return vfilter.Null{}
 		}
 
-		// If an org is specied we use the config obj from the org.
+		// If an org is specified we use the config obj from the org.
 		config_obj, err = org_manager.GetOrgConfig(arg.OrgId)
 		if err != nil {
 			scope.Log("collect_client: %v", err)
@@ -141,6 +141,7 @@ func (self *ScheduleCollectionFunction) Call(ctx context.Context,
 
 	request := &flows_proto.ArtifactCollectorArgs{
 		ClientId:       arg.ClientId,
+		FlowId:         arg.FlowId,
 		Artifacts:      arg.Artifacts,
 		Creator:        vql_subsystem.GetPrincipal(scope),
 		OpsPerSecond:   float32(arg.OpsPerSecond),
@@ -201,8 +202,9 @@ func (self ScheduleCollectionFunction) Info(scope vfilter.Scope, type_map *vfilt
 		Name:    "collect_client",
 		Doc:     "Launch an artifact collection against a client.",
 		ArgType: type_map.AddType(scope, &ScheduleCollectionFunctionArg{}),
-		Metadata: vql.VQLMetadata().Permissions(
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
 			acls.COLLECT_CLIENT, acls.COLLECT_SERVER, acls.COLLECT_BASIC).Build(),
+		Version: 3,
 	}
 }
 

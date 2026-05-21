@@ -159,7 +159,7 @@ func (self *OSFileInfo) GetLink() (*accessors.OSPath, error) {
 	}
 	self._accessor_ctx.LinkVisited(uint64(sys.Dev), sys.Ino)
 
-	// For now we dont support links so we dont get stuck in a
+	// For now we don't support links so we don't get stuck in a
 	// cycle.
 	ret, err := os.Readlink(self._full_path.String())
 	if err != nil {
@@ -486,7 +486,7 @@ func (self OSFileSystemAccessor) OpenWithOSPath(
 
 	path = symlink_path
 
-	// Usually we dont allow direct access to devices otherwise a
+	// Usually we don't allow direct access to devices otherwise a
 	// recursive yara scan can get into /proc/ and crash the
 	// kernel. Sometimes this is exactly what we want so we provide
 	// the "raw_file" accessor.

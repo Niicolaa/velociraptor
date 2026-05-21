@@ -55,13 +55,13 @@
   ## Caveats
 
   It is not possible for clients to present an TLS client certificate
-  because they dont have one. Therefore the Frontend (the service
+  because they don't have one. Therefore the Frontend (the service
   connecting to clients) can not require client certificates. Since
   TLS requires client certificates *before* the HTTP headers it is
   currently impossible to require client certificates **only** for the
   GUI and not the frontend if they share the same port!!!
 
-  This means that client certifacts do not work with using autocert
+  This means that client certificates do not work with using autocert
   (in that case both frontend and GUI share the same port due to
   limitations in the Let's Encrypt protocol).
 
@@ -117,7 +117,6 @@ func (self *CertAuthenticator) AddLogoff(mux *api_utils.ServeMux) error {
 				func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 					http.Error(w, "authorization failed", http.StatusUnauthorized)
-					return
 				})))
 
 	return nil

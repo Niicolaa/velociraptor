@@ -22,7 +22,7 @@ type NodeContext struct {
 	Parent *yaml.Node
 }
 
-// The yaml library emits nodes in an incosistent way which makes them
+// The yaml library emits nodes in an inconsistent way which makes them
 // hard to navigate. This function reorders the nodes into a proper
 // document structure and fetches the relevant node.
 func GetYamlNodes(node, parent *yaml.Node,
@@ -78,7 +78,7 @@ func GetYamlNodes(node, parent *yaml.Node,
 					node, components[1:], nodes)
 			}
 		}
-		// Didnt find it
+		// Didn't find it
 		return false
 	}
 

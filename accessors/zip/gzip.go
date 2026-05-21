@@ -37,7 +37,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -58,7 +57,7 @@ func (self *GzipFileInfo) IsDir() bool {
 }
 
 func (self *GzipFileInfo) Size() int64 {
-	// We dont really know the size.
+	// We don't really know the size.
 	return -1
 }
 
@@ -268,7 +267,7 @@ func GetBzip2File(full_path *accessors.OSPath, scope vfilter.Scope) (
 
 	zr := bzip2.NewReader(fd)
 	return &SeekableGzip{reader: fd,
-		gz: ioutil.NopCloser(zr),
+		gz: io.NopCloser(zr),
 		info: &GzipFileInfo{
 			_modtime:   stat.ModTime(),
 			_name:      stat.Name(),

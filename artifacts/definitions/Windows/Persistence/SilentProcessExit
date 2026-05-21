@@ -4,8 +4,8 @@ description: |
   registry key. The silent exit monitoring key allows a user to attach
   a program that executes when another program exits.
 
-  Limitations: This queries the live registry and therefore does not 
-  parse data in Windows.old or Regback folders, or VSS.
+  Limitations: This queries the live registry and therefore does not
+  parse data in `Windows.old` or `Regback` folders, or VSS.
   An additional modification is required to 'Image File Execution Options'
   however this data isn't collected in this artifact.
 

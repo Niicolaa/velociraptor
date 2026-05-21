@@ -188,7 +188,7 @@ func configureProxy(
 	proxy_config *config_proto.ProxyConfig) (
 	handler ProxyHandler, err error) {
 	if proxy_config.Pac != "" {
-		// Suppoprt PAC files on the local filesystem as well with file:/// URLs.
+		// Support PAC files on the local filesystem as well with file:/// URLs.
 		t := &http.Transport{}
 		t.RegisterProtocol("file", http.NewFileTransport(http.Dir("/")))
 		t.RegisterProtocol("data", DataURLTransport{})
@@ -287,7 +287,7 @@ func configureProxy(
 }
 
 func ConfigureProxy(config_obj *config_proto.Config) error {
-	// Try to configur proxy set in the Frontend section first, but if
+	// Try to configure proxy set in the Frontend section first, but if
 	// not present use the Client section.
 	_, err := ConfigureFrontendProxy(config_obj)
 	if err == noConfigError {

@@ -204,7 +204,7 @@ type Launcher interface {
 	// goroutine. This means all the artifacts in the
 	// ArtifactCollectorArgs will be collected one after the other
 	// in turn. If callers want to collect artifacts in parallel
-	// then they need to perpare several VQLCollectorArgs and
+	// then they need to prepare several VQLCollectorArgs and
 	// launch them as separate messages.
 
 	// This method is only useful when the caller wants to cache

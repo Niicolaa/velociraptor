@@ -78,7 +78,7 @@ func (self *serverLogger) Write(b []byte) (int, error) {
 			s.LogRows++
 		})
 
-		// If an error occured mark the collection failed.
+		// If an error occurred mark the collection failed.
 		if level == "ERROR" || defaultLogErrorRegex.MatchString(msg) {
 			self.query_context.UpdateStatus(func(s *crypto_proto.VeloStatus) {
 				s.Status = crypto_proto.VeloStatus_GENERIC_ERROR
@@ -95,7 +95,8 @@ func NewServerLogWriter(
 	config_obj *config_proto.Config,
 	session_id string) (result_sets.ResultSetWriter, error) {
 
-	path_manager := paths.NewFlowPathManager("server", session_id)
+	path_manager := paths.NewFlowPathManager(
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID, session_id)
 	file_store_factory := file_store.GetFileStore(config_obj)
 	log_writer, err := result_sets.NewResultSetWriter(file_store_factory,
 		path_manager.Log(), json.DefaultEncOpts(),

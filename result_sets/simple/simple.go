@@ -40,6 +40,7 @@ import (
 
 	"github.com/Velocidex/json"
 	"github.com/Velocidex/ordereddict"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/file_store/api"
 	vjson "www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/result_sets"
@@ -67,26 +68,35 @@ type ResultSetWriterImpl struct {
 	sync bool
 }
 
-// This tells us that we expect to write the next row at this offset.
-// We need to ensure the file is actually as we expect it to be.
-func (self *ResultSetWriterImpl) SetStartRow(start_row int64) error {
+func (self *ResultSetWriterImpl) TotalRows() int64 {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
 	// Calculate the number of rows currently in the file.
 	idx_size, err := self.index_fd.Size()
 	if err != nil {
-		return err
+		return 0
 	}
 
-	// The numebr of rows in the underlying file.
+	// The number of rows in the underlying file.
 	number_of_rows := idx_size / 8 // 8 Bytes per row in the index.
 
 	// Corrent for any rows we have in memory waiting to be flushed.
 	number_of_rows += int64(len(self.rows))
 
+	return number_of_rows
+}
+
+func (self *ResultSetWriterImpl) TotalBytes() int64 {
+	size, _ := self.fd.Size()
+	return size
+}
+
+// This tells us that we expect to write the next row at this offset.
+// We need to ensure the file is actually as we expect it to be.
+func (self *ResultSetWriterImpl) SetStartRow(start_row int64) error {
 	// This is a retransmission
-	if number_of_rows > start_row {
+	if self.TotalRows() > start_row {
 		return retransmissionError
 	}
 
@@ -101,27 +111,40 @@ func (self *ResultSetWriterImpl) SetSync() {
 }
 
 // WriteJSONL writes an entire JSONL blob to the end of the result
-// set. This is supposed to be very fast so we dont have to parse the
+// set. This is supposed to be very fast so we don't have to parse the
 // JSON (Typically the client sends us the complete JSON blob).  Since
-// we do not not know exactly where in the JSON blob each row starts
-// we update the index to refer to the begining of the row and the
+// we do not know exactly where in the JSON blob each row starts
+// we update the index to refer to the beginning of the row and the
 // number of rows from there.
 
 // The reader will find the correct row by loading the JSONL file at
 // the indicated offset then reading lines off it until they reach the
 // desired row index.
-func (self *ResultSetWriterImpl) WriteJSONL(serialized []byte, total_rows uint64) {
+func (self *ResultSetWriterImpl) WriteJSONL(serialized []byte, total_rows uint64) error {
 	if total_rows == 0 {
 		total_rows = countLines(serialized)
 	}
 
+	if total_rows > constants.MAX_ROW_LIMIT {
+		return utils.MemoryError
+	}
+
+	if len(serialized) == 0 {
+		return nil
+	}
+
+	// Make sure the jsonl is properly terminated
+	if serialized[len(serialized)-1] != '\n' {
+		serialized = append(serialized, '\n')
+	}
+
 	// Sync the index with the current buffers.
 	self.Flush()
 
 	// Write an index that spans the serialized range.
 	offset, err := self.fd.Size()
 	if err != nil {
-		return
+		return err
 	}
 
 	// All the index slots will point to the start of the blob
@@ -130,17 +153,25 @@ func (self *ResultSetWriterImpl) WriteJSONL(serialized []byte, total_rows uint64
 		value := uint64(offset) | (i << 40)
 		err = binary.Write(offsets, binary.LittleEndian, value)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
-	_, _ = self.fd.Write(serialized)
-	_, _ = self.index_fd.Write(offsets.Bytes())
+	_, err = self.fd.Write(serialized)
+	if err != nil {
+		return err
+	}
+	_, err = self.index_fd.Write(offsets.Bytes())
+	return err
 }
 
 func (self *ResultSetWriterImpl) WriteCompressedJSONL(
 	serialized []byte, byte_offset uint64, uncompressed_size int,
-	total_rows uint64) {
+	total_rows uint64) error {
+
+	if total_rows > constants.MAX_ROW_LIMIT {
+		return utils.MemoryError
+	}
 
 	// Sync the index with the current buffers.
 	self.Flush()
@@ -148,7 +179,7 @@ func (self *ResultSetWriterImpl) WriteCompressedJSONL(
 	// Write an index that spans the serialized range.
 	offset, err := self.fd.Size()
 	if err != nil {
-		return
+		return err
 	}
 
 	// All the index slots will point to the start of the blob
@@ -157,12 +188,16 @@ func (self *ResultSetWriterImpl) WriteCompressedJSONL(
 		value := uint64(offset) | (i << 40)
 		err = binary.Write(offsets, binary.LittleEndian, value)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
-	_, _ = self.fd.WriteCompressed(serialized, byte_offset, uncompressed_size)
-	_, _ = self.index_fd.Write(offsets.Bytes())
+	_, err = self.fd.WriteCompressed(serialized, byte_offset, uncompressed_size)
+	if err != nil {
+		return err
+	}
+	_, err = self.index_fd.Write(offsets.Bytes())
+	return err
 }
 
 func (self *ResultSetWriterImpl) Write(row *ordereddict.Dict) {
@@ -394,7 +429,7 @@ func (self *ResultSetReaderImpl) Rows(ctx context.Context) <-chan *ordereddict.D
 		reader := bufio.NewReader(self.fd)
 		for {
 			row_data, err := reader.ReadBytes('\n')
-			if err != nil {
+			if err != nil && err != io.EOF {
 				return
 			}
 
@@ -544,7 +579,7 @@ func (self ResultSetFactory) DeleteResultSet(
 	// 3. optionally a chunk file for compressed result sets
 	// 4. A directory hierarchy of transformed cache files.
 
-	// Try to delete these but dont worry if they are missing
+	// Try to delete these but don't worry if they are missing
 	_ = file_store_factory.Delete(path.
 		SetType(api.PATH_TYPE_FILESTORE_JSON_INDEX))
 
@@ -587,7 +622,7 @@ func (self ResultSetFactory) NewResultSetReader(
 	}
 	// Keep the open file until the reader is closed.
 
-	// -1 indicates we dont know how many rows there are
+	// -1 indicates we don't know how many rows there are
 	total_rows := int64(-1)
 	var mtime time.Time
 	idx_fd, err := file_store_factory.ReadFile(log_path.

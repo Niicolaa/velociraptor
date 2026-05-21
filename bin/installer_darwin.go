@@ -110,7 +110,7 @@ func doInstall() error {
 
 	// If the installer was invoked with the --config arg then we need
 	// to copy the config to the target path. Otherwise the config may
-	// be embedded so we dont need to use it at all.
+	// be embedded so we don't need to use it at all.
 	if *config_path != "" {
 		config_target_path := strings.TrimSuffix(
 			target_path, filepath.Ext(target_path)) + ".config.yaml"

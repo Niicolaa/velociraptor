@@ -55,7 +55,7 @@ func InstallSignalHandler(
 			scope.Close()
 			// Only cancel the context once the scope is fully
 			// destroyed. This ensures all the destructors have
-			// enougb time to finish when we exit the program
+			// enough time to finish when we exit the program
 			cancel()
 		case <-subctx.Done():
 		}
@@ -64,7 +64,7 @@ func InstallSignalHandler(
 	return subctx, cancel
 }
 
-// Turns os.Stdout into into file_store.WriteSeekCloser
+// Turns os.Stdout into file_store.WriteSeekCloser
 type StdoutWrapper struct {
 	io.Writer
 }

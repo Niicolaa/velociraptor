@@ -25,7 +25,7 @@
 
 //  1. CSV are just flat files, which can be appended to without
 //     modifying previous data. This is perfect for many uses within
-//     Velociraptor: For example as more data is retreived from
+//     Velociraptor: For example as more data is retrieved from
 //     clients, we can just append to the end of an existing CSV file.
 
 //  2. CSV Readers can watch the end of the file and when it grows

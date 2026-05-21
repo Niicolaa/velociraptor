@@ -98,9 +98,8 @@ func newPoolClientMux(ctx context.Context, config_obj *config_proto.Config) (*po
 			// Forward all the event messages to all clients.
 			snapshot := []*PoolClientExecutor{}
 			self.mu.Lock()
-			for _, client := range self.clients {
-				snapshot = append(snapshot, client)
-			}
+
+			snapshot = append(snapshot, self.clients...)
 			self.mu.Unlock()
 
 			for _, client := range snapshot {
@@ -389,7 +388,7 @@ func NewPoolClientExecutor(
 }
 
 // Detect if this is a FlowStats message which represents the flow is
-// compelte.
+// complete.
 func isFlowComplete(message *crypto_proto.VeloMessage) bool {
 	if message.FlowStats == nil {
 		return false

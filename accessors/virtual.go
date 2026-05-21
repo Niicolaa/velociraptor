@@ -111,7 +111,7 @@ func (self *VirtualFileInfo) GetLink() (*OSPath, error) {
 	return nil, errors.New("Not implemented")
 }
 
-// Mount tree is very sparse so we dont really need a map here -
+// Mount tree is very sparse so we don't really need a map here -
 // linear search is fast enough.
 type directory_node struct {
 	file_info *VirtualFileInfo
@@ -163,7 +163,7 @@ func (self *directory_node) MakeChild(name string) *directory_node {
 	return new_directory_node
 }
 
-// A Virtual Filsystem stores files and directories in memory.
+// A Virtual Filesystem stores files and directories in memory.
 type VirtualFilesystemAccessor struct {
 	root_path *OSPath
 	root      directory_node

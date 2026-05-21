@@ -45,7 +45,7 @@ func NewMultiGetSubjectRequest(message proto.Message, path api.DSPathSpec, data 
 	}
 }
 
-// A helper function to read multipe subjects at the same time.
+// A helper function to read multiple subjects at the same time.
 func MultiGetSubject(
 	config_obj *config_proto.Config,
 	requests []*MultiGetSubjectRequest) error {
@@ -101,6 +101,7 @@ func Walk(config_obj *config_proto.Config,
 		err := Walk(config_obj, datastore, d, with_directories, walkFn)
 		if err != nil {
 			// Do not quit the walk early.
+			_ = err
 		}
 	}
 

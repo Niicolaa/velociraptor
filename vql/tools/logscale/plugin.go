@@ -9,7 +9,7 @@ import (
 
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
-	"www.velocidex.com/golang/velociraptor/vql"
+	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/networking"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -157,6 +157,7 @@ func (self logscalePlugin) Call(ctx context.Context,
 	go func() {
 		defer close(outputChan)
 		defer vql_subsystem.RegisterMonitor(ctx, "logscale", args)()
+		defer utils.RecoverVQL(scope)
 
 		err := vql_subsystem.CheckAccess(scope, acls.NETWORK)
 		if err != nil {
@@ -262,7 +263,7 @@ func (self logscalePlugin) Info(
 		Doc:  "Upload rows to LogScale ingestion server.",
 
 		ArgType:  type_map.AddType(scope, &logscalePluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.NETWORK).Build(),
 	}
 }
 

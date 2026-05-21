@@ -81,14 +81,14 @@ func (self UnzipPlugin) Call(
 			return
 		}
 
-		// Make sure we are allowed to write there.
-		err = file.CheckPath(arg.OutputDirectory)
+		output_directory, err := filepath.Abs(arg.OutputDirectory)
 		if err != nil {
 			scope.Log("unzip: %v", err)
 			return
 		}
 
-		output_directory, err := filepath.Abs(arg.OutputDirectory)
+		// Make sure we are allowed to write there.
+		err = file.CheckPath(output_directory)
 		if err != nil {
 			scope.Log("unzip: %v", err)
 			return
@@ -159,12 +159,10 @@ func (self *UnzipPlugin) unpackZip(
 			continue
 		}
 
-		// Sanitize the name for writing.
-		output_path := filepath.Join(output_directory, member.Name)
-
-		// Directory traversal ...
-		if !strings.HasPrefix(output_path, output_directory) {
-			continue
+		output_path := utils.Join(output_directory, member.Name)
+		err = file.CheckPath(output_path)
+		if err != nil {
+			return err
 		}
 
 		err = os.MkdirAll(filepath.Dir(output_path), 0700)
@@ -241,12 +239,18 @@ func (self *UnzipPlugin) unpackTGZ(
 			continue
 		}
 
-		// Sanitize the name for writing.
-		output_path := filepath.Join(output_directory, member.Name)
+		// Sanitize the name for writing. We do not support traversal
+		// names in the ZIP file.
+		output_path := utils.Join(output_directory, member.Name)
 
 		// Directory traversal ...
 		if !strings.HasPrefix(output_path, output_directory) {
 			continue
+		}
+
+		err = file.CheckPath(output_path)
+		if err != nil {
+			return err
 		}
 
 		err = os.MkdirAll(filepath.Dir(output_path), 0700)
@@ -291,6 +295,7 @@ func (self UnzipPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vf
 		Doc:      "Unzips a file into a directory",
 		ArgType:  type_map.AddType(scope, &UnzipPluginArgs{}),
 		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_WRITE, acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 

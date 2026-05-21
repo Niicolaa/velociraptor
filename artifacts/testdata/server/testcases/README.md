@@ -31,7 +31,7 @@ run by the `make golden` command.
 Additionally you can run the `dlv` debugger in the golden output by
 running `make debug_golden` at the top level.
 
-To filter the test cases (so they dont have to all run) you can set
+To filter the test cases (so they don't have to all run) you can set
 the `GOLDEN` environment variable. For example to only run the tests
 in `pe.in.yaml`:
 

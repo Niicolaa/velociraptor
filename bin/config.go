@@ -34,6 +34,7 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/crypto"
 	crypto_utils "www.velocidex.com/golang/velociraptor/crypto/utils"
+	"www.velocidex.com/golang/velociraptor/grpc_client"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/services"
@@ -47,7 +48,7 @@ var (
 	config_command = app.Command(
 		"config", "Manipulate the configuration.")
 
-	config_command_org = config_command.Flag(
+	org_id = app.Flag(
 		"org", "Org ID to show").String()
 
 	config_show_command = config_command.Command(
@@ -162,7 +163,7 @@ func doShowConfig() error {
 	}
 	defer sm.Close()
 
-	config_obj, err = maybeGetOrgConfig(*config_command_org, config_obj)
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -341,7 +342,7 @@ func doDumpClientConfig() error {
 	}
 	defer sm.Close()
 
-	config_obj, err = maybeGetOrgConfig(*config_command_org, config_obj)
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -452,12 +453,10 @@ func doDumpApiClientConfig() error {
 
 	switch config_obj.API.BindScheme {
 	case "tcp":
-		hostname := config_obj.API.Hostname
-		if hostname == "" {
-			hostname = config_obj.API.BindAddress
-		}
+		hostname := grpc_client.GetAPIHostname(config_obj)
 		api_client_config.ApiConnectionString = fmt.Sprintf("%s:%v",
 			hostname, config_obj.API.BindPort)
+
 	case "unix":
 		api_client_config.ApiConnectionString = fmt.Sprintf("unix://%s",
 			config_obj.API.BindAddress)

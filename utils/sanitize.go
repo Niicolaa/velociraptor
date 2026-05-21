@@ -188,7 +188,7 @@ func UnsanitizeComponent(component string) string {
 		}
 
 		if component[i] == '%' {
-			// A % escape sequece (eg %0d)
+			// A % escape sequence (e.g. %0d)
 			if i+2 < len(component) {
 				result[j] = unhex(component[i+1])<<4 | unhex(component[i+2])
 				i += 3
@@ -215,7 +215,7 @@ func UnsanitizeComponentForZip(component string) string {
 		}
 
 		if component[i] == '%' {
-			// A % escape sequece (eg %0d)
+			// A % escape sequence (e.g. %0d)
 			if i+2 < len(component) {
 				result[j] = unhex(component[i+1])<<4 | unhex(component[i+2])
 				i += 3

@@ -3,13 +3,16 @@ package docs
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/Velocidex/velociraptor-site-search/api"
-	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/v2"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/services"
+	"www.velocidex.com/golang/velociraptor/services/debug"
 	"www.velocidex.com/golang/velociraptor/utils"
+	"www.velocidex.com/golang/vfilter"
 )
 
 type DocManager struct {
@@ -17,7 +20,20 @@ type DocManager struct {
 
 	config_obj *config_proto.Config
 
-	index api.Index
+	index_filename     string
+	index_filename_age time.Time
+}
+
+// Debounce the filename a bit so we don't check too often.
+func (self *DocManager) indexFilename() string {
+	now := utils.GetTime().Now()
+
+	if self.index_filename != "" &&
+		now.Add(-10*time.Second).After(self.index_filename_age) {
+		return ""
+	}
+
+	return self.index_filename
 }
 
 func (self *DocManager) Search(
@@ -28,6 +44,7 @@ func (self *DocManager) Search(
 	if err != nil {
 		return nil, err
 	}
+	defer index.Close()
 
 	query := bleve.NewQueryStringQuery(query_str)
 	searchRequest := bleve.NewSearchRequest(query)
@@ -102,4 +119,19 @@ func NewDocManager(
 	}
 
 	return services.GetDocManager(root_org_config)
+}
+
+func init() {
+	debug.RegisterProfileWriter(debug.ProfileWriterInfo{
+		Name:        "Index",
+		Description: "Report information of currently opened Bleve indexes.",
+		ProfileWriter: func(ctx context.Context,
+			scope vfilter.Scope, output_chan chan vfilter.Row) {
+
+			for _, item := range api.GetStats() {
+				output_chan <- item
+			}
+		},
+		Categories: []string{"Global", "Services"},
+	})
 }

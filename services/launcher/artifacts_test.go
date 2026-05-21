@@ -125,7 +125,7 @@ func (self *ArtifactTestSuite) TestStackOverflow() {
 		self.repository, services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
 
-	// If we fail this test make sure we take a resonable time.
+	// If we fail this test make sure we take a reasonable time.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -158,7 +158,7 @@ func (self *ArtifactTestSuite) TestArtifactDependencies() {
 		self.repository, services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
 
-	// If we fail make sure we take a resonable time.
+	// If we fail make sure we take a reasonable time.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	test_responder := responder.TestResponderWithFlowId(

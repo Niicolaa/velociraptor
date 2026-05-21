@@ -45,7 +45,7 @@ func (self *CommandlineToArgvFunction) Call(ctx context.Context,
 func (self CommandlineToArgvFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
 		Name:    "commandline_split",
-		Doc:     "Split a commandline into separate components following the windows convensions.",
+		Doc:     "Split a commandline into separate components following the windows conventions.",
 		ArgType: type_map.AddType(scope, &CommandlineToArgvArgs{}),
 	}
 }

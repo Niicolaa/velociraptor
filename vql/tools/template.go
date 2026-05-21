@@ -10,7 +10,6 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/reporting"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -66,14 +65,29 @@ func (self *TemplateFunction) Call(ctx context.Context,
 			return vfilter.Null{}
 		}
 
-		return string(buffer.Bytes())
+		return buffer.String()
 	}
 
 	tmpl := text_template.New("").Funcs(sprig.TxtFuncMap()).Funcs(
 		text_template.FuncMap{
 			"Scope": template_engine.GetScope,
 			"Get":   template_engine.GetFunction,
-			"str":   utils.ToString,
+			"bool": func(value interface{}) bool {
+				return scope.Bool(value)
+			},
+			"lt": func(x, y interface{}) bool {
+				return scope.Lt(x, y)
+			},
+			"gt": func(x, y interface{}) bool {
+				return scope.Gt(x, y)
+			},
+			"eq": func(x, y interface{}) bool {
+				return scope.Eq(x, y)
+			},
+			"not": func(x interface{}) bool {
+				return !scope.Bool(x)
+			},
+			"str": utils.ToString,
 			"env": func() string {
 				return ""
 			},
@@ -95,7 +109,7 @@ func (self *TemplateFunction) Call(ctx context.Context,
 		return vfilter.Null{}
 	}
 
-	return string(buffer.Bytes())
+	return buffer.String()
 }
 
 func (self *TemplateFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
@@ -103,7 +117,8 @@ func (self *TemplateFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMa
 		Name:     "template",
 		Doc:      "Expand a Go style template .",
 		ArgType:  type_map.AddType(scope, &TemplateFunctionArgs{}),
-		Metadata: vql.VQLMetadata().Build(),
+		Metadata: vql_subsystem.VQLMetadata().Build(),
+		Version:  2,
 	}
 }
 

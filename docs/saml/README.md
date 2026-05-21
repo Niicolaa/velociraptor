@@ -18,14 +18,14 @@ There are four configuration values that need to be set in order to activate the
 These are expected to be set inside `server.config.yaml` under `GUI` key.
 
 There are also optional parameters:
-- `saml_user_attribute` to set which will be used as a user identificator. If it is not set, it will search for the `name` attribute in the SAML response from the identity provider.
+- `saml_user_attribute` to set which will be used as a user identifier. If it is not set, it will search for the `name` attribute in the SAML response from the identity provider.
 - `saml_user_roles` enables automatic creation of users and assigns them the configured roles when authenticated via SAML. If it is not set, then no users will be created automatically.
 
 ## Setting up testing environment
 
 ### Setting up Simple SAML
 
-Easiest approach to test the SAML login feature is to use [test-saml-idp](https://hub.docker.com/r/kristophjunge/test-saml-idp/) docker image. 
+Easiest approach to test the SAML login feature is to use [test-saml-idp](https://hub.docker.com/r/kristophjunge/test-saml-idp/) docker image.
 Start the docker image by specifying the Velociraptor metadata URL as `SIMPLESAMLPHP_SP_ENTITY_ID` and Velociraptor ACS URL as `SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE`:
 
 ```
@@ -45,7 +45,7 @@ To configure Velociraptor for SAML logins you would need to generate your own SA
 
 This is tricky because Velociraptor does not trust unknown certificates, so you would need to sign your certificate with Velociraptor's CA.
 You can find the Velociraptor CA inside `server.config.yaml` under `CA.private_key` - copy it into a separate file. After you have the
-CA in a separate file (let's assume that the name is `VelociraptorCA.key`) you need to execute several commands 
+CA in a separate file (let's assume that the name is `VelociraptorCA.key`) you need to execute several commands
 to obtain SAML certificate and SAML private key (adapted from [fntlnz's gist](https://gist.github.com/fntlnz/cf14feb5a46b2eda428e000157447309) \[2\]):
 
 ```
@@ -58,7 +58,7 @@ openssl x509 -req -in example.com.csr -CA VelociraptorCA.crt -CAkey Velociraptor
 The `example.com.crt` content is set as `saml_certificate` and `example.com.key` is set as `saml_private_key`.
 
 If we assume that you've set up the Simple SAML on `localhost:8080`, you should be able to get the IDP metadata at `http://localhost:8080/simplesaml/saml2/idp/metadata.php`.
-This URL should be specified as the `saml_idp_metadata_url` value. The `saml_root_url` is specified as the Velociraptor 
+This URL should be specified as the `saml_idp_metadata_url` value. The `saml_root_url` is specified as the Velociraptor
 root URL which should be `https://localhost:8889` when testing locally.
 
 To link user emails in Velociraptor database with SimpleSAML users, set `saml_user_attribute` to `email`.
@@ -98,7 +98,7 @@ query = ";mail,givenName,sn;{0}", param = c.Value);
 This worked for me, but of course I don't know what exactly you're doing so mileage may vary.
 ```
 
-The notes were copied from the following [link](https://github.com/crewjam/saml/issues/5#issuecomment-501328253). 
+The notes were copied from the following [link](https://github.com/crewjam/saml/issues/5#issuecomment-501328253).
 With this setup we've observed that the `saml_user_attribute` should be set to ` http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn`.
 
 ## Useful resources

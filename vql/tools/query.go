@@ -9,7 +9,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/actions"
 	"www.velocidex.com/golang/velociraptor/executor/throttler"
 	"www.velocidex.com/golang/velociraptor/services"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/acl_managers"
 	"www.velocidex.com/golang/vfilter"
@@ -90,8 +89,10 @@ func (self QueryPlugin) Call(
 				return
 			}
 
-			// The subscoope will switch to the specified org.
+			// The subscope will switch to the specified org.
 			builder.Config = org_config_obj
+			builder.ACLManager = acl_managers.NewServerACLManager(
+				org_config_obj, vql_subsystem.GetPrincipal(scope))
 		}
 
 		if arg.Principal != "" {
@@ -266,7 +267,8 @@ func (self QueryPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vf
 		Name:     "query",
 		Doc:      "Evaluate a VQL query.",
 		ArgType:  type_map.AddType(scope, &QueryPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.IMPERSONATION).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.IMPERSONATION).Build(),
+		Version:  2,
 	}
 }
 

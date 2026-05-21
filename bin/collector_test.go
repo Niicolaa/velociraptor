@@ -118,7 +118,7 @@ func (self *CollectorTestSuite) addArtifactDefinitions() {
 	t := self.T()
 
 	// Create new artifacts and just save them on the filesystem - we
-	// dont need a real repository manager.
+	// don't need a real repository manager.
 	file_store_factory := file_store.GetFileStore(self.config_obj)
 
 	fd, err := file_store_factory.WriteFile(paths.GetArtifactDefintionPath(
@@ -195,7 +195,7 @@ func (self *CollectorTestSuite) uploadToolDefinitions() {
 	fmt.Println(string(out))
 	require.NoError(t, err)
 
-	// Make sure the binary is proprly added.
+	// Make sure the binary is properly added.
 	assert.Regexp(t, "name: Velociraptor", string(out))
 
 	// Should have a hash

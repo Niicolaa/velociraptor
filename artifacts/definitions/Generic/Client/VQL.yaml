@@ -1,6 +1,6 @@
 name: Generic.Client.VQL
 description: |
-  Run arbitrary VQL on the endpoint.
+  Runs an arbitrary VQL query on the endpoint.
 
 required_permissions:
   - IMPERSONATION
@@ -11,4 +11,10 @@ parameters:
 
 sources:
   - query: |
-      SELECT * FROM query(query=Command, env=dict(config=config))
+      SELECT _SessionId, *
+      FROM query(query=Command, env=dict(config=config))
+
+  - name: Overview
+    query: |
+      SELECT _SessionId, timestamp(epoch=now()) AS Timestamp, Command
+      FROM scope()

@@ -8,7 +8,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"www.velocidex.com/golang/go-ntfs/parser"
 	ntfs "www.velocidex.com/golang/go-ntfs/parser"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/constants"
@@ -145,9 +144,6 @@ func (self *NTFSCachedContext) Close() {
 func (self *NTFSCachedContext) _CloseWithLock() {
 	if self.ntfs_ctx != nil {
 		self.ntfs_ctx.Close()
-		self.ntfs_ctx = nil
-		self.started = time.Time{}
-		self.next_refresh = self.started
 	}
 	self.paged_reader.Close()
 }
@@ -247,7 +243,8 @@ func getNTFSCache(scope vfilter.Scope,
 			id:                utils.GetId(),
 		}
 
-		err := cache_ctx.Start(context.Background(), scope)
+		subctx, cancel := context.WithCancel(context.Background())
+		err := cache_ctx.Start(subctx, scope)
 		if err != nil {
 			return nil, err
 		}
@@ -262,6 +259,7 @@ func getNTFSCache(scope vfilter.Scope,
 			}
 			cache_ctx.mu.Unlock()
 			cache_ctx.Close()
+			cancel()
 			Tracker.Unregister(cache_ctx)
 		})
 		if err != nil {
@@ -274,7 +272,7 @@ func getNTFSCache(scope vfilter.Scope,
 	return cache_ctx, nil
 }
 
-func GetScopeOptions(scope vfilter.Scope) parser.Options {
+func GetScopeOptions(scope vfilter.Scope) ntfs.Options {
 	directory_depth := vql_subsystem.GetIntFromRow(
 		scope, scope, constants.NTFS_MAX_DIRECTORY_DEPTH)
 	if directory_depth == 0 {
@@ -293,7 +291,7 @@ func GetScopeOptions(scope vfilter.Scope) parser.Options {
 	full_path_resolution := vql_subsystem.GetBoolFromRow(
 		scope, scope, constants.NTFS_DISABLE_FULL_PATH_RESOLUTION)
 
-	return parser.Options{
+	return ntfs.Options{
 		MaxDirectoryDepth:         int(directory_depth),
 		MaxLinks:                  int(max_links),
 		IncludeShortNames:         include_short_names,

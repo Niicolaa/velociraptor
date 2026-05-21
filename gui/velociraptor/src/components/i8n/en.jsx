@@ -168,7 +168,7 @@ const English = {
     <>
       Event monitoring targets specific label groups.
       Select a label group above to configure specific
-      event artifacts targetting that group.
+      event artifacts targeting that group.
     </>,
     "Deutsch": "German",
     "_ts": "ServerTime",

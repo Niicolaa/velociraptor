@@ -18,7 +18,7 @@ func TestClientKeyLRU(t *testing.T) {
 	outbound1 := []byte{2}
 
 	// Do we have an outbound cipher? Not currently
-	cipher, pres = lru.GetOutboundCipher(client_id)
+	_, pres = lru.GetOutboundCipher(client_id)
 	assert.False(t, pres)
 
 	// Add the outbound cipher now.
@@ -33,7 +33,7 @@ func TestClientKeyLRU(t *testing.T) {
 	assert.Equal(t, cipher.encrypted_cipher, outbound1)
 
 	// Check for inbound cipher - none set yet.
-	cipher, pres = lru.GetByInboundCipher(inbound1)
+	_, pres = lru.GetByInboundCipher(inbound1)
 	assert.False(t, pres)
 
 	// Set the inbound cipher
@@ -49,7 +49,7 @@ func TestClientKeyLRU(t *testing.T) {
 	assert.Equal(t, cipher.source, client_id)
 
 	// Check for inbound cipher again - should still be cached
-	cipher, pres = lru.GetByInboundCipher(inbound1)
+	_, pres = lru.GetByInboundCipher(inbound1)
 	assert.True(t, pres)
 
 	// Now change the ciphers around and check the LRU is updating
@@ -81,7 +81,7 @@ func TestClientKeyLRU(t *testing.T) {
 		assert.Equal(t, cipher.encrypted_cipher, outbound2)
 	}
 
-	// Make sure we dont leak
+	// Make sure we don't leak
 	assert.Equal(t, 1, len(lru.by_source))
 	assert.Equal(t, 1, len(lru.by_inbound_cipher))
 	assert.Equal(t, int64(1), lru.size)

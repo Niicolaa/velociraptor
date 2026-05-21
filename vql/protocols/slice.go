@@ -27,7 +27,7 @@ func (self _SliceLt) Lt(scope vfilter.Scope, a vfilter.Any, b vfilter.Any) bool 
 		return true
 	}
 
-	// RHS is emptry this has to be greater than LHS
+	// RHS is empty this has to be greater than LHS
 	if b_value.Len() == 0 {
 		return false
 	}

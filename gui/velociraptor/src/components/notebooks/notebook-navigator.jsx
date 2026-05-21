@@ -1,12 +1,9 @@
-import _ from 'lodash';
-
 import "./notebook-navigator.css";
 import Button from 'react-bootstrap/Button';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import T from '../i8n/i8n.jsx';
 import VeloTable, { getFormatter } from '../core/table.jsx';
-import VeloTimestamp from "../utils/time.jsx";
 import classNames from "classnames";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { withRouter }  from "react-router-dom";
@@ -38,7 +35,6 @@ class NotebookNavigator extends Component {
         if (this.props.notebook &&
             this.props.notebook.notebook_id) {
 
-            console.log(this.props.match);
             if (this.props.match.path.startsWith("/fullscreen")) {
                 this.props.history.push(
                     "/notebooks/" +

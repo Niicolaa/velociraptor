@@ -116,7 +116,7 @@ class RenderObject extends Component {
     };
 
     componentDidMount = () => {
-        // Set the intiial expanded state.
+        // Set the initial expanded state.
         let depth = this.props.depth || 0;
         this.setState({expanded: this.props.expand_map[depth]});
     }

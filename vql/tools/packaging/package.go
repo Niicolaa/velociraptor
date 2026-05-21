@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Velocidex/ordereddict"
+	"github.com/Velocidex/yaml/v2"
 	"google.golang.org/protobuf/proto"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/accessors/file"
@@ -16,7 +17,6 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/tools"
 	"www.velocidex.com/golang/vfilter"
@@ -115,7 +115,11 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 		}
 
 		if arg.Target == "" {
-			arg.Target = "VelociraptorLinux"
+			if arg.Server {
+				arg.Target = "VelociraptorLinuxSumo"
+			} else {
+				arg.Target = "VelociraptorLinux"
+			}
 		}
 
 		config_obj, ok := vql_subsystem.GetServerConfig(scope)
@@ -124,7 +128,17 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 			return
 		}
 
-		var target_config *config_proto.Config
+		target_config_obj := config_obj
+
+		// Populate the config from the plugin arg.
+		if arg.Config != "" {
+			target_config_obj = &config_proto.Config{}
+			err = yaml.UnmarshalStrict([]byte(arg.Config), target_config_obj)
+			if err != nil {
+				scope.Log("ERROR:%v: %v", self.name, err)
+				return
+			}
+		}
 
 		var spec *PackageSpec
 		if arg.PackageSpec != nil {
@@ -134,17 +148,17 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 				return
 			}
 			if spec.Server {
-				target_config, err = validateServerConfig(config_obj)
+				target_config_obj, err = validateServerConfig(target_config_obj)
 				if err != nil {
 					scope.Log("ERROR:%v: %v", self.name, err)
 					return
 				}
 
 				// We force the binary to run as the velociraptor user
-				target_config.Frontend.RunAsUser = spec.Expansion.ServerUser
+				target_config_obj.Frontend.RunAsUser = spec.Expansion.ServerUser
 
 			} else {
-				target_config, err = validateClientConfig(config_obj, arg.Config)
+				target_config_obj, err = validateClientConfig(target_config_obj, arg.Config)
 				if err != nil {
 					scope.Log("ERROR:%v: %v", self.name, err)
 					return
@@ -153,18 +167,18 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 
 		} else if arg.Server {
 			spec = self.serverSpecFactory()
-			target_config, err = validateServerConfig(config_obj)
+			target_config_obj, err = validateServerConfig(target_config_obj)
 			if err != nil {
 				scope.Log("ERROR:%v: %v", self.name, err)
 				return
 			}
 
 			// We force the binary to run as the velociraptor user
-			target_config.Frontend.RunAsUser = spec.Expansion.ServerUser
+			target_config_obj.Frontend.RunAsUser = spec.Expansion.ServerUser
 
 		} else {
 			spec = self.clientSpecFactory()
-			target_config, err = validateClientConfig(config_obj, arg.Config)
+			target_config_obj, err = validateClientConfig(target_config_obj, arg.Config)
 			if err != nil {
 				scope.Log("ERROR:%v: %v", self.name, err)
 				return
@@ -222,7 +236,7 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 		}
 
 		for _, package_spec := range expandSpec(
-			spec, target_config, arch, arg.Release, exe_bytes) {
+			spec, target_config_obj, arch, arg.Release, exe_bytes) {
 
 			builder, err := self.builder(package_spec)
 			if err != nil {
@@ -230,8 +244,14 @@ func (self CreatePackagePlugin) Call(ctx context.Context,
 				return
 			}
 
-			filename := filepath.Join(arg.DirName, package_spec.OutputFilename())
+			filename := utils.Join(arg.DirName, package_spec.OutputFilename())
 			scope.Log("DEBUG:%v: writing file %v", self.name, filename)
+
+			err = file.CheckPath(filename)
+			if err != nil {
+				scope.Log("ERROR:%v: %v", self.name, err)
+				return
+			}
 
 			fd, err := os.OpenFile(filename,
 				os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
@@ -303,14 +323,14 @@ func validateServerConfig(config_obj *config_proto.Config) (*config_proto.Config
 		return nil, errors.New("Server Config requires a Frontend and Client sections.")
 	}
 
-	return res, nil
+	return res, config.ValidateFrontendConfig(res)
 }
 
 func validateClientConfig(
 	// The current server config.
 	config_obj *config_proto.Config,
 
-	// A client config passed by the caller or "" for derving it from
+	// A client config passed by the caller or "" for deriving it from
 	// the server config.
 	config_yaml string) (stripped_config *config_proto.Config, err error) {
 
@@ -338,7 +358,7 @@ func (self CreatePackagePlugin) Info(scope vfilter.Scope, type_map *vfilter.Type
 		Name:    self.name,
 		Doc:     self.description,
 		ArgType: type_map.AddType(scope, &CreatePackageArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
 			acls.COLLECT_SERVER, acls.FILESYSTEM_WRITE, acls.SERVER_ADMIN).Build(),
 	}
 }

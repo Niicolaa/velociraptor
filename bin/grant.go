@@ -33,8 +33,6 @@ var (
 	grant_command = acl_command.Command(
 		"grant", "Grant a principal  a policy.")
 
-	grant_command_org = grant_command.Flag("org", "OrgID to grant").String()
-
 	grant_command_principal = grant_command.Arg(
 		"principal", "Name of principal (User or cert) to grant.").
 		Required().String()
@@ -68,11 +66,10 @@ func doGrant() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	principal := *grant_command_principal
 
@@ -89,7 +86,7 @@ func doGrant() error {
 		return err
 	}
 
-	org_config_obj, err := org_manager.GetOrgConfig(*grant_command_org)
+	org_config_obj, err := org_manager.GetOrgConfig(*org_id)
 	if err != nil {
 		return err
 	}
@@ -162,11 +159,10 @@ func doShow() error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	principal := *show_command_principal
 

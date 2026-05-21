@@ -21,7 +21,6 @@ import (
 type LabelsTestSuite struct {
 	test_utils.TestSuite
 	client_id string
-	flow_id   string
 
 	closer func()
 }
@@ -146,7 +145,7 @@ func (self *LabelsTestSuite) TestAddLabel() {
 		self.Ctx, self.ConfigObj, self.client_id), now)
 }
 
-// Check that two labelers can syncronize changes between them via the
+// Check that two labelers can synchronize changes between them via the
 // journal.
 func (self *LabelsTestSuite) TestSyncronization() {
 	labeler1 := services.GetLabeler(self.ConfigObj)
@@ -166,7 +165,7 @@ func (self *LabelsTestSuite) TestSyncronization() {
 		self.Ctx, self.ConfigObj, self.client_id, "Label1"))
 
 	// Set the label in one labeler and wait for the change to be
-	// propagagted to the second labeler.
+	// propagated to the second labeler.
 	err = labeler1.SetClientLabel(
 		self.Ctx, self.ConfigObj, self.client_id, "Label1")
 	assert.NoError(self.T(), err)

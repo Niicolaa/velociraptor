@@ -6,7 +6,9 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"github.com/sirupsen/logrus"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/logging"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
 )
@@ -38,8 +40,13 @@ func (self *AuditManager) LogAudit(
 	}
 
 	// If an event is important enough to be audit logged we need to
-	// make sure to write it syncronously.
+	// make sure to write it synchronously.
 	return journal.PushRowsToArtifact(
 		ctx, config_obj, []*ordereddict.Dict{record},
-		"Server.Audit.Logs", "server", "")
+		services.JournalOptions{
+			ArtifactName: "Server.Audit.Logs",
+			ArtifactType: artifact_modes.MODE_SERVER_EVENT,
+			ClientId:     constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
+			Username:     principal,
+		})
 }

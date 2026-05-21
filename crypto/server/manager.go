@@ -17,6 +17,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/datastore"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services/journal"
 	"www.velocidex.com/golang/velociraptor/utils"
 )
@@ -48,7 +49,7 @@ func (self *ServerCryptoManager) AddCertificateRequest(
 	// client is free to generate its own private/public key pair
 	// and just uses those to communicate with the server we just
 	// store its public key so we can verify its
-	// transmissions. The most important thing here is to verfiy
+	// transmissions. The most important thing here is to verify
 	// that the client id this packet claims to come from
 	// corresponds with the public key this client presents. This
 	// avoids the possibility of impersonation since the
@@ -101,7 +102,7 @@ func NewServerCryptoManager(
 	}
 
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.ClientDelete",
+		artifacts.CLIENT_DELETE_QUEUE,
 		"CryptoServerManager",
 		func(ctx context.Context,
 			config_obj *config_proto.Config,

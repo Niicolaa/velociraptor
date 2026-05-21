@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 
 	"github.com/Velocidex/ordereddict"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -12,7 +11,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
 	utils "www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/filesystem"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -80,7 +78,7 @@ func (self LevelDBPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *
 		Name:     "leveldb",
 		Doc:      "Enumerate all items in a level db database",
 		ArgType:  type_map.AddType(scope, &LevelDBPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 
@@ -148,7 +146,7 @@ func makeLocalCopy(
 			return "", err
 		}
 
-		out_fd, err := os.OpenFile(filepath.Join(tmpdir, f_info.Name()),
+		out_fd, err := os.OpenFile(utils.Join(tmpdir, f_info.Name()),
 			os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0700)
 		if err != nil {
 			in_fd.Close()

@@ -11,7 +11,7 @@
     Dereferencing the `Artifact` plugin with "." will yield runners
     for the named artifact.
 
-    For example the following query:
+    For example, the following query:
 
     ```vql
     SELECT * FROM Artifact.Generic.Client.Info()
@@ -66,6 +66,53 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: adx_upload
+  description: Upload rows to Azure Data Explorer (ADX).
+  type: Plugin
+  args:
+  - name: query
+    type: StoredQuery
+    description: Source for rows to upload.
+    required: true
+  - name: threads
+    type: int64
+    description: How many threads to use.
+  - name: cluster_url
+    type: string
+    description: The ADX cluster URL.
+  - name: database
+    type: string
+    description: The ADX database name.
+  - name: table
+    type: string
+    description: The name of the table to upload to.
+  - name: client_id
+    type: string
+    description: Azure Service Principal Client ID.
+  - name: client_secret
+    type: string
+    description: Azure Service Principal Client Secret.
+  - name: tenant_id
+    type: string
+    description: Azure Service Principal Tenant ID.
+  - name: chunk_size
+    type: int64
+    description: The number of rows to send at the time.
+  - name: wait_time
+    type: int64
+    description: Batch ADX upload this long (5 sec).
+  - name: max_memory_buffer
+    type: uint64
+    description: How large we allow the memory buffer to grow to while we are trying
+      to contact the ADX server (default 100mb).
+  - name: secret
+    type: string
+    description: Alternatively use a secret from the secrets service. Secret must
+      be of type 'ADX Creds'
+  metadata:
+    permissions: NETWORK
+  platforms:
+  - linux_amd64_cgo
 - name: alert
   description: |
     Generate an alert message.
@@ -253,6 +300,7 @@
 - name: artifact_set
   description: Sets an artifact into the global repository.
   type: Function
+  version: 2
   args:
   - name: definition
     type: string
@@ -299,6 +347,7 @@
     FROM artifact_definitions() WHERE NOT description =~ "ACME"
     ```
   type: Function
+  version: 2
   args:
   - name: name
     type: string
@@ -491,6 +540,7 @@
     Note that the backups file can only reside in the file store under
     the `<filestor>/backups` directory.
   type: Plugin
+  version: 2
   args:
   - name: name
     type: string
@@ -605,6 +655,7 @@
     }, batch_size=3)
     ```
   type: Plugin
+  version: 2
   args:
   - name: batch_size
     type: int64
@@ -659,7 +710,7 @@
     Creates a cache object.
 
     A Cache is a data structure which is used to speed up calculating
-    data by keeping it's value in memory. A cache is essentially a key
+    data by keeping its value in memory. A cache is essentially a key
     value store - when the key is accessed, the function will be
     calculated producing a value. If the key is accessed again, the
     value is returned from the cache without calculating it again.
@@ -667,31 +718,43 @@
     For example consider the following:
 
     ```vql
-        LET get_pid_query(Lpid) =
-           SELECT Pid, Ppid, Name FROM pslist(pid=Lpid)
+    LET get_pid_query(Lpid) =
+      SELECT Pid, Ppid, Name FROM pslist(pid=Lpid)
 
-        SELECT cache(func=get_pid_query(Lpid=Pid), key=str(str=Pid))
-        FROM ....
+    LET _ <= cache(lambda='x=>get_pid_query(Lpid=x)[0]')
+
+    SELECT cache(key=getpid())
+    FROM scope()
     ```
 
-    The cache will ensure that get_pid_query() is only called once per
+    The cache will ensure that `get_pid_query()` is only called once per
     unique Pid by comparing the key against the internal memory store.
   type: Function
+  version: 2
   args:
   - name: func
     type: LazyExpr
-    description: A function to evaluate
-    required: true
+    description: A function to evaluate (deprecated - use a lambda instead)
+  - name: lambda
+    type: vfilter.Lambda
+    description: 'A VQL lambda to evaluate with the key as parameter. e.g.. x=>x+1 '
   - name: name
     type: string
     description: The global name of this cache (needed when more than one)
   - name: key
-    type: string
+    type: Any
     description: Cache key to use.
-    required: true
   - name: period
     type: int64
     description: The latest age of the cache.
+  - name: filename
+    type: string
+    description: Filename for a persistent cache.
+  - name: max_size
+    type: uint64
+    description: Maximum size of the LRU (default 10000).
+  metadata:
+    permissions: FILESYSTEM_WRITE
   platforms:
   - darwin_amd64_cgo
   - darwin_arm64_cgo
@@ -895,6 +958,7 @@
 - name: client_create
   description: Create a new client in the data store.
   type: Function
+  version: 2
   args:
   - name: first_seen_at
     type: time.Time
@@ -993,7 +1057,7 @@
     Returns client metadata from the datastore.
 
     Client metadata is a set of free form key/value data. Artifacts
-    may use this metdata or it may simply be used as part of your IR
+    may use this metadata or it may simply be used as part of your IR
     processes.
 
     ### See also
@@ -1038,6 +1102,7 @@
     - [client_metadata]({{< ref "/vql_reference/server/client_metadata/" >}}):
       Returns client metadata from the datastore.
   type: Function
+  version: 2
   args:
   - name: client_id
     type: string
@@ -1136,6 +1201,7 @@
     collect --output file.zip` command. It will collect the artifacts
     into a zip file.
   type: Plugin
+  version: 2
   args:
   - name: artifacts
     type: string
@@ -1212,8 +1278,9 @@
     parameter, and a list of artifacts to collect in the `artifacts`
     parameter.
 
-    In this case all artifacts will receive the the same
-    parameters. For example:
+    In this case all artifacts will receive the same parameters.
+
+    For example:
 
     ```vql
     SELECT collect_client(
@@ -1278,11 +1345,16 @@
     you will often need to specify a field name containing full
     stop. You can escape this using the backticks like the example above.
   type: Function
+  version: 3
   args:
   - name: client_id
     type: string
     description: The client id to schedule a collection on
     required: true
+  - name: flow_id
+    type: string
+    description: If a flow id is specified we do not create a new flow, but instead
+      add the collection to this flow.
   - name: artifacts
     type: string
     description: A list of artifacts to collect
@@ -1363,7 +1435,7 @@
     Select columns from another query using regex.
 
     Sometimes a query produces a large number of columns or
-    unpredictable column names (eg. the `read_reg_key()` plugin
+    unpredictable column names (e.g. the `read_reg_key()` plugin
     produces a column per value name).
 
     You can use the `column_filter()` plugin to select a subset of the
@@ -1412,6 +1484,7 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+  free_form_args: true
 - name: commandline_split
   description: |
     Split a commandline into separate components following the windows
@@ -1508,6 +1581,7 @@
 
     NOTE: Sparse files are padded out
   type: Function
+  version: 3
   args:
   - name: filename
     type: accessors.OSPath
@@ -1522,7 +1596,10 @@
     required: true
   - name: permissions
     type: string
-    description: Required permissions (e.g. 'x').
+    description: Permissions for the destination file (e.g. `rw-rw-rwx` or `0755`).
+  - name: dir_permissions
+    type: string
+    description: Permissions for intermediate directories.
   - name: append
     type: bool
     description: If true we append to the target file otherwise truncate it
@@ -1575,6 +1652,7 @@
     Using the `wait` parameter you can wait for the download to
     complete or just kick it off asynchronously.
   type: Function
+  version: 2
   args:
   - name: client_id
     type: string
@@ -1626,6 +1704,7 @@
     Using the `wait` parameter you can wait for the download to
     complete or just kick it off asynchronously.
   type: Function
+  version: 2
   args:
   - name: hunt_id
     type: string
@@ -1661,6 +1740,7 @@
 - name: create_notebook_download
   description: Creates a notebook export zip file.
   type: Function
+  version: 2
   args:
   - name: notebook_id
     type: string
@@ -1841,6 +1921,7 @@
 - name: delete_flow
   description: Delete all the files that make up a flow.
   type: Plugin
+  version: 2
   args:
   - name: flow_id
     type: string
@@ -2091,6 +2172,7 @@
     `index` parameter or provide an `_index` column in the query
     itself to send the row to a different index each time.
   type: Plugin
+  version: 2
   args:
   - name: query
     type: StoredQuery
@@ -2121,7 +2203,7 @@
     description: Password for HTTP Basic Authentication.
   - name: cloud_id
     type: string
-    description: Endpoint for the Elastic Service (https://elastic.co/cloud).
+    description: Endpoint for the [Elastic Cloud Service](https://elastic.co/cloud).
   - name: api_key
     type: string
     description: Base64-encoded token for authorization; if set, overrides username
@@ -2162,15 +2244,20 @@
   - windows_386_cgo
   - windows_amd64_cgo
 - name: encode
-  description: Encodes a string as as different type. Currently supported types include
-    'hex', 'base64'.
+  description: |
+    Encode an object as a string.
+
+    This function is an alias to `serialize()`
   type: Function
+  version: 3
   args:
   - name: string
     type: Any
+    description: The item to encode
     required: true
   - name: type
     type: string
+    description: Encoding format (csv,json,yaml,hex,base64)
     required: true
   category: encode
   platforms:
@@ -2309,6 +2396,7 @@
     SELECT eval(func="x=>AddTwo(x=1)") AS Three FROM scope()
     ```
   type: Function
+  version: 2
   args:
   - name: func
     type: vfilter.Lambda
@@ -2377,7 +2465,7 @@
 
     We do not actually transfer the external program to the system
     automatically. If you need to run programs which are not usually
-    installed (e.g. Sysinternal's autoruns.exe) you will need to use
+    installed (e.g. Sysinternals' `autoruns.exe`) you will need to use
     Velociraptor's external tools feature to deliver and manage the
     tools on the client. See
     https://docs.velociraptor.app/docs/vql/extending_vql/
@@ -2415,6 +2503,7 @@
     it does not invoke powershell which means that any execution
     artifacts are not trampled by this VQL.
   type: Plugin
+  version: 2
   args:
   - name: argv
     type: string
@@ -3182,7 +3271,7 @@
     `watch_etw()` query will never terminate since it is an event
     query.
   type: Function
-  version: 2
+  version: 3
   args:
   - name: name
     type: string
@@ -3295,12 +3384,12 @@
   description: |
     Retrieve the current client monitoring state.
 
-    The client monitoring table represent's the server configuration
+    The client monitoring table represents the server's configuration
     of client event queries to deploy.
 
     This function is designed to allow programmatic manipulation of
-    the event query table in conjunction with set_client_monitoring()
-    function.
+    the event query table in conjunction with the
+    `set_client_monitoring()` function.
 
     It is commonly used together with the `patch()` function to patch
     the data structure to add additional event queries.
@@ -3606,6 +3695,7 @@
   description: |
     Enumerate process handles.
   type: Plugin
+  version: 2
   args:
   - name: pid
     type: uint64
@@ -3683,6 +3773,7 @@
     No caching is currently provided so this may generate a lot
     of load on DNS servers when scanning many rows.
   type: Function
+  version: 2
   args:
   - name: name
     type: string
@@ -3882,6 +3973,7 @@
 
     Formats a byte count in human readable way (e.g. Mb, Gb etc).
   type: Function
+  version: 2
   args:
   - name: bytes
     type: int64
@@ -3913,9 +4005,6 @@
 
     ### Notes
 
-    No caching is currently provided so this may generate a lot
-    of load on DNS servers when scanning many rows.
-
     1. In the GUI hunts are always created in the paused
     state. This is not the default state when using this function (all
     hunts are immediately active - if you want the hunt to be created
@@ -3935,11 +4024,19 @@
         expires=now() + 18000)
     FROM scope()
     ```
+
+    3. Hunt conditions are not additive! A hunt can only be targeted
+       to an operating system, or label but not both.
   type: Function
+  version: 3
   args:
   - name: description
     type: string
     description: Description of the hunt
+  - name: tags
+    type: string
+    description: A list of tags to add to the hunt
+    repeated: true
   - name: artifacts
     type: string
     description: A list of artifacts to collect
@@ -4027,6 +4124,7 @@
     manually re-run these collections and then when successful re-add
     them to the hunt.
   type: Function
+  version: 2
   args:
   - name: client_id
     type: string
@@ -4053,6 +4151,7 @@
 - name: hunt_delete
   description: 'Delete a hunt. '
   type: Plugin
+  version: 2
   args:
   - name: hunt_id
     type: string
@@ -4085,6 +4184,7 @@
     You can use this to figure out if all the collections were
     successful by looking at the result of each flow object.
   type: Plugin
+  version: 2
   args:
   - name: hunt_id
     type: string
@@ -4132,6 +4232,23 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: hunt_reindex
+  description: |
+    Reindex a hunt.
+
+    This is sometimes necessary if hunt overview stats are
+    incorrect. This plugin will walk all hunt flows and re-tally all
+    the stats to reset the hunt overview into the correct values.
+
+    On some installations this is a very expensive operation as it
+    generates a lot of IO.
+  type: Plugin
+  args:
+  - name: hunt_id
+    type: string
+    description: The hunt to reindex. If not specified we index all hunts
+  platforms:
+  - linux_amd64_cgo
 - name: hunt_results
   description: |
     Retrieve the results of a hunt.
@@ -4142,6 +4259,7 @@
     It is equivalent to the source() plugin in the hunt notebook
     context.
   type: Plugin
+  version: 2
   args:
   - name: artifact
     type: string
@@ -4172,6 +4290,7 @@
 - name: hunt_update
   description: Update a hunt.
   type: Function
+  version: 2
   args:
   - name: hunt_id
     type: string
@@ -4381,6 +4500,7 @@
     Combine this function with the hunt_add() function to add a
     manual offline collection to an ongoing hunt.
   type: Function
+  version: 2
   args:
   - name: client_id
     type: string
@@ -4408,6 +4528,104 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: index
+  description: |
+    Create a local index from a query.
+
+    This plugin uses [Bleve](https://blevesearch.com/) to build an
+    on-disk full text index of the query. The index can be searched
+    with `index_search()`.
+
+    In order to build the index, the fields must be analyzed. The
+    analyzer breaks the text into tokens which are then indexed. The
+    process depends on the nature of the data.
+
+    The mappings can dictate how this process is done:
+
+    - `text`: This is the default analyzer - it considers the text to
+      be English text and breaks it into words, applies suffixes etc.
+    - `number`: The field is considered to be a number
+    - `date`: The field is considered to be a date and parsed into a standard form.
+    - `bool`: The field is considered a bool (true or false)
+    - `ip`: The field is parsed as an IP.
+
+    If no field mappings are specified we treat all fields as text.
+
+    For example:
+    ```
+    LET DataStream = SELECT OSPath, read_file(filename=OSPath) AS Data
+    FROM glob(globs="/etc/*")
+    WHERE NOT IsDir AND NOT IsLink
+
+    SELECT * FROM index(query=DataStream, output=IndexPath)
+    ```
+
+    Once the index is created it can be searched. For example:
+    ```
+    SELECT *
+    FROM index_search(path=IndexPath, fields="Data", search="syslog")
+    ```
+  type: Plugin
+  version: 2
+  args:
+  - name: query
+    type: StoredQuery
+    description: A VQL Query to parse and execute.
+    required: true
+  - name: mapping
+    type: ordereddict.Dict
+    description: A dict to describe field mapping.
+  - name: default_analyzer
+    type: string
+    description: The default analyzer to use.
+  - name: output
+    type: string
+    description: The file path to create the index on.
+    required: true
+  - name: workers
+    type: int64
+    description: Index with this many workers (default 2)
+  - name: purge
+    type: bool
+    description: If set we delete the index to start fresh
+  - name: batch
+    type: int64
+    description: Default batch size for index (default 1000)
+  - name: silent
+    type: bool
+    description: Do not forward events (this is faster)
+  metadata:
+    permissions: FILESYSTEM_WRITE
+  platforms:
+  - linux_amd64_cgo
+- name: index_search
+  description: Search a previously created index.
+  type: Plugin
+  version: 1
+  args:
+  - name: path
+    type: string
+    description: The file path to the index to open.
+    required: true
+  - name: search
+    type: string
+    description: A Bleve search query. See https://blevesearch.com/docs/Query-String-Query/
+    required: true
+  - name: fields
+    type: string
+    description: A list of fields to include from the index.
+    repeated: true
+  - name: sort
+    type: string
+    description: The field to sort by (precede with - to sort in descending order).
+    repeated: true
+  - name: start
+    type: uint64
+    description: Row number to start.
+  metadata:
+    permissions: FILESYSTEM_READ
+  platforms:
+  - linux_amd64_cgo
 - name: info
   description: |
     Get information about the running host.
@@ -4536,6 +4754,7 @@
     readable by the server (so the file must reside on the server or
     be accessible over a network share).
   type: Function
+  version: 2
   args:
   - name: tool
     type: string
@@ -4569,6 +4788,7 @@
 - name: inventory_get
   description: Get tool info from inventory service.
   type: Function
+  version: 2
   args:
   - name: tool
     type: string
@@ -4637,6 +4857,7 @@
     - [geoip]({{< ref "/vql_reference/other/geoip/" >}}): Lookup an IP Address
       using the MaxMind GeoIP database.
   type: Function
+  version: 2
   args:
   - name: parse
     type: string
@@ -4997,6 +5218,7 @@
     actually valid - i.e. it does not check that the client id refers
     to a real client, flow id to a real flow, etc.
   type: Function
+  version: 2
   args:
   - name: type
     type: string
@@ -5125,6 +5347,7 @@
 - name: logging
   description: Watch the logs emitted by the server.
   type: Plugin
+  version: 2
   args:
   - name: component
     type: string
@@ -5376,6 +5599,7 @@
     FROM scope()
     ```
   type: Function
+  version: 2
   args:
   - name: to
     type: string
@@ -5440,6 +5664,7 @@
 
     See the mail() function for more details.
   type: Plugin
+  version: 2
   args:
   - name: to
     type: string
@@ -5570,7 +5795,7 @@
 
     ```vql
     LET m <= memoize(query={
-       SELECT str(str=Pid) AS Key, Name, Pid, Ppid FROM pslist()
+       SELECT Pid AS Key, Name, Pid, Ppid FROM pslist()
     }, key='Key')
     ```
 
@@ -5582,13 +5807,22 @@
     operator. If the key matches the entire row is retrieved:
 
     ```vql
-    SELECT get(item=m, field=str(str=Pid)).Name AS ProcessName
+    SELECT get(item=m, field=Pid).Name AS ProcessName
     FROM source()
     ```
+
+    The `period` parameter is the number of seconds before the query
+    is considered stale. When the data is stale, the query will be
+    re-run to get fresh data.
+
+    Providing the `filename` parameter allows the data to be stored to a
+    file. This is helpful when the query is very large or the results
+    need to be re-used in another query.
   type: Function
+  version: 3
   args:
   - name: query
-    type: LazyExpr
+    type: StoredQuery
     description: Query to expand into memory
     required: true
   - name: key
@@ -5601,6 +5835,9 @@
   - name: name
     type: string
     description: The name of this cache.
+  - name: filename
+    type: string
+    description: Filename for a persistent cache.
   category: popular
   platforms:
   - darwin_amd64_cgo
@@ -5947,6 +6184,7 @@
 - name: notebook_get
   description: Get a notebook.
   type: Function
+  version: 2
   args:
   - name: notebook_id
     type: string
@@ -5999,6 +6237,7 @@
 - name: notebook_update_cell
   description: Update a notebook cell.
   type: Function
+  version: 2
   args:
   - name: notebook_id
     type: string
@@ -6077,6 +6316,11 @@
 
     - [timestamp]({{< ref "/vql_reference/popular/timestamp/" >}})
   type: Function
+  version: 2
+  args:
+  - name: ns
+    type: bool
+    description: Return the time in ns
   category: popular
   platforms:
   - darwin_amd64_cgo
@@ -6214,6 +6458,7 @@
 - name: org_delete
   description: Deletes an Org from the server.
   type: Function
+  version: 2
   args:
   - name: org
     type: string
@@ -6252,7 +6497,7 @@
     - /usr/bin/
 
     Then when attempting to open the file "ls", this accessor first
-    searches for it in in /bin/ls, then /usr/bin/ls.
+    searches for it in /bin/ls, then /usr/bin/ls.
 
     The search paths are selected using a scope variable:
 
@@ -6267,7 +6512,7 @@
   args:
   - name: paths
     type: accessors.OSPath
-    description: A list of paths to try to resolve each path.
+    description: A list of paths to try to resolve.
     repeated: true
     required: true
   - name: accessor
@@ -6283,7 +6528,7 @@
   type: Plugin
   category: developer
   metadata:
-    permissions: MACHINE_STATE
+    permissions: SERVER_ADMIN
   platforms:
   - darwin_amd64_cgo
   - darwin_arm64_cgo
@@ -6420,6 +6665,7 @@
     can be found in the [vfilter](https://github.com/Velocidex/vtypes)
     module documentation.
   type: Function
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -6430,7 +6676,7 @@
     description: The accessor to use
   - name: profile
     type: string
-    description: Profile to use (see https://github.com/Velocidex/vtypes).
+    description: Profile to use (see [vfilter](https://github.com/Velocidex/vtypes)).
   - name: struct
     type: string
     description: Name of the struct in the profile to instantiate.
@@ -6438,6 +6684,9 @@
   - name: offset
     type: int64
     description: Start parsing from this offset
+  - name: env
+    type: ordereddict.Dict
+    description: Additional environment variables to make available to the profile
   category: parsers
   metadata:
     permissions: FILESYSTEM_READ
@@ -6577,6 +6826,7 @@
     FROM watch_evtx(filename=systemLogFile) WHERE EventID = 7045
     ```
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -6620,6 +6870,7 @@
 - name: parse_journald
   description: Parse a journald file.
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -6690,6 +6941,7 @@
     This function is similar to `parse_json()` but works for a JSON list
     instead of an object.
   type: Function
+  version: 2
   args:
   - name: data
     type: string
@@ -6709,6 +6961,7 @@
 - name: parse_json_array
   description: Parses events from a line oriented json file.
   type: Plugin
+  version: 2
   args:
   - name: data
     type: string
@@ -6728,6 +6981,7 @@
 - name: parse_jsonl
   description: Parses a line oriented json file.
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -6818,7 +7072,7 @@
          accessor="raw_ntfs")
     ```
   type: Plugin
-  version: 2
+  version: 3
   args:
   - name: filename
     type: accessors.OSPath
@@ -6880,6 +7134,7 @@
     reconstruct all attributes (for example if attributes are not
     stored in the $MFT but in external clusters).
   type: Function
+  version: 2
   args:
   - name: device
     type: string
@@ -6921,6 +7176,7 @@
     Note: You can also use a raw $MFT file to operate on - see
     `parse_ntfs()` for a full description.
   type: Plugin
+  version: 2
   args:
   - name: device
     type: string
@@ -6959,6 +7215,7 @@
     Note: You can also use a raw $MFT file to operate on - see
     `parse_ntfs()` for a full description.
   type: Plugin
+  version: 2
   args:
   - name: device
     type: string
@@ -7027,10 +7284,10 @@
     usually fairly expensive to calculate (as they need to hash the
     file and compare signatures etc).
 
-    If you dont need that field you can remove it or select only some
-    fields using [set
-    operations](https://docs.velociraptor.app/knowledge_base/tips/set_operations/). This
-    will make the operations a lot faster.
+    If you don't need that field you can remove it or select only some
+    fields using
+    [set operations](https://docs.velociraptor.app/knowledge_base/tips/set_operations/).
+    This will make the operations a lot faster.
 
     ```vql
     LET FieldMask <= dict(VersionInformation=TRUE, Imports=TRUE)
@@ -7070,6 +7327,7 @@
     that relevant or corrupted and may result in slowing down the
     query.
   type: Function
+  version: 2
   args:
   - name: file
     type: accessors.OSPath
@@ -7352,6 +7610,7 @@
   description: |
     Parse an XML document into a dict like object.
   type: Function
+  version: 2
   args:
   - name: file
     type: accessors.OSPath
@@ -7372,6 +7631,7 @@
 - name: parse_yaml
   description: Parse yaml into an object.
   type: Function
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -7524,7 +7784,7 @@
 - name: pathspec
   description: Create a structured path spec to pass to certain accessors.
   type: Function
-  version: 1
+  version: 2
   args:
   - name: DelegateAccessor
     type: string
@@ -7799,14 +8059,19 @@
   description: |
     Scan processes using yara rules.
 
-    This plugin uses yara's own engine to scan process memory for the signatures.
+    This plugin uses yara's own engine to scan process memory for the
+    signatures.
 
     {{% notice note %}}
 
-    Process memory access depends on having the [SeDebugPrivilege](https://support.microsoft.com/en-au/help/131065/how-to-obtain-a-handle-to-any-process-with-sedebugprivilege) which depends on how Velociraptor was started. Even when running as System, some processes are not accessible.
+    Process memory access depends on having the
+    [SeDebugPrivilege](https://mskb.pkisolutions.com/kb/131065) which
+    depends on how Velociraptor was started. Even when running as
+    System, some processes are not accessible.
 
     {{% /notice %}}
   type: Plugin
+  version: 2
   args:
   - name: rules
     type: string
@@ -7824,7 +8089,7 @@
     description: If set use this key to cache the  yara rules.
   - name: namespace
     type: string
-    description: The Yara namespece to use.
+    description: The Yara namespace to use.
   - name: vars
     type: ordereddict.Dict
     description: The Yara variables to use.
@@ -7923,6 +8188,7 @@
 - name: process_tracker_callchain
   description: Get a call chain from the global process tracker.
   type: Function
+  version: 2
   args:
   - name: id
     type: string
@@ -7940,6 +8206,7 @@
 - name: process_tracker_children
   description: Get all children of a process.
   type: Function
+  version: 2
   args:
   - name: id
     type: string
@@ -7957,6 +8224,7 @@
 - name: process_tracker_get
   description: Get a single process from the global tracker.
   type: Function
+  version: 2
   args:
   - name: id
     type: string
@@ -7985,6 +8253,7 @@
 - name: process_tracker_tree
   description: Get the full process tree under the process id.
   type: Function
+  version: 2
   args:
   - name: id
     type: string
@@ -8014,6 +8283,7 @@
 - name: profile
   description: Returns a profile dump from the running process.
   type: Plugin
+  version: 2
   args:
   - name: allocs
     type: bool
@@ -8289,6 +8559,7 @@
     }, exit='x=>x._value >= my_limit', inherit=true)
     ```
   type: Plugin
+  version: 2
   args:
   - name: query
     type: Any
@@ -8542,6 +8813,7 @@
 - name: read_crypto_file
   description: Read a previously stored encrypted local storage file.
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -8734,6 +9006,7 @@
   description: Search and replace a string with a regexp. Note you can use $1 to replace
     the capture string.
   type: Function
+  version: 2
   args:
   - name: source
     type: string
@@ -8923,6 +9196,7 @@
 - name: repack
   description: Repack and upload a repacked binary or MSI to the server.
   type: Function
+  version: 2
   args:
   - name: target
     type: string
@@ -9244,7 +9518,7 @@
     The scope plugin returns the current scope as a single row.
 
     The main use for this plugin is as a NOOP plugin in those cases we
-    dont want to actually run anything.
+    don't want to actually run anything.
 
     ### Example
 
@@ -9321,6 +9595,7 @@
     secret_modify(delete=TRUE) to truly delete the secret in the child
     org context (see the query() plugin to switch org contexts).
   type: Function
+  version: 2
   args:
   - name: name
     type: string
@@ -9388,11 +9663,15 @@
     artifact (either as a VQL query running on the server or perhaps
     an external program waiting for this event via the API.
   type: Function
+  version: 2
   args:
   - name: artifact
     type: string
     description: The artifact name to send the event to.
     required: true
+  - name: client_id
+    type: string
+    description: The client_id for this event in case of a client_event artifact.
   - name: row
     type: ordereddict.Dict
     description: The row to send to the artifact
@@ -9439,6 +9718,8 @@
       WHERE DNSInfo AND Name
     })
     ```
+
+    NOTE: An alternative to this plugin is a `Sigma Correlation rule`
   type: Plugin
   args:
   - name: query
@@ -9471,9 +9752,12 @@
     example:
 
     ```vql
-    SELECT * FROM Artifact.Linux.Search.FileFinder(SearchFilesGlobTable=serialize(format="csv",item=tlist),...)
+    SELECT * FROM Artifact.Linux.Search.FileFinder(
+       SearchFilesGlobTable=serialize(format="csv",item=tlist),...)
     ```
-    will pass a list in CSV format to the artifact's `SearchFilesGlobTable` parameter.
+
+    will pass a list in CSV format to the artifact's
+    `SearchFilesGlobTable` parameter.
 
     ### See also
 
@@ -9609,6 +9893,55 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: shell_session
+  description: Recreate or retrieve a shell session handle.
+  type: Function
+  version: 1
+  args:
+  - name: argv
+    type: string
+    description: Argv to run the command with.
+    repeated: true
+    required: true
+  - name: env
+    type: ordereddict.Dict
+    description: Environment variables to launch with.
+  - name: cwd
+    type: string
+    description: If specified we change to this working directory first.
+  - name: secret
+    type: string
+    description: The name of a secret to use.
+  - name: name
+    type: string
+    description: The name of the shell session. If the session already exists, we
+      just return a handle to it.
+  metadata:
+    permissions: EXECVE
+  platforms:
+  - linux_amd64_cgo
+- name: shell_session_control
+  description: Control a previously created shell session.
+  type: Function
+  version: 1
+  args:
+  - name: name
+    type: string
+    description: The name of the shell session.
+  - name: stdin
+    type: string
+    description: Write this string to the session stdin.
+  - name: close_stdin
+    type: bool
+    description: If specified we close the stdin of the session. This will usually
+      terminate the session gracefully.
+  - name: kill
+    type: bool
+    description: If specified we kill the session.
+  metadata:
+    permissions: EXECVE
+  platforms:
+  - linux_amd64_cgo
 - name: sigma
   description: |
     Evaluate sigma rules.
@@ -9821,6 +10154,7 @@
     SELECT * FROM source(notebook_id="N.123", notebook_cell="NC.1234")
     ```
   type: Plugin
+  version: 2
   args:
   - name: client_id
     type: string
@@ -9938,6 +10272,7 @@
 - name: split_records
   description: Parses files by splitting lines into records.
   type: Plugin
+  version: 2
   args:
   - name: filenames
     type: accessors.OSPath
@@ -9979,6 +10314,7 @@
 - name: splunk_upload
   description: Upload rows to splunk.
   type: Plugin
+  version: 2
   args:
   - name: query
     type: StoredQuery
@@ -10308,6 +10644,7 @@
     strip(string="   lorem ipsum   ") -> "lorem ipsum"
     ```
   type: Function
+  version: 2
   args:
   - name: string
     type: string
@@ -10369,6 +10706,15 @@
 
     Executes each query in order. If a query returns any rows, those
     are emitted. Any further queries are ignored.
+
+    For example:
+    ```vql
+    SELECT * FROM switch(a={
+      SELECT * FROM First
+    }, b={
+      SELECT * FROM Second
+    })
+    ```
   type: Plugin
   category: popular
   platforms:
@@ -10435,6 +10781,7 @@
 - name: template
   description: Expand a Go style template .
   type: Function
+  version: 2
   args:
   - name: template
     type: string
@@ -10467,6 +10814,7 @@
   description: Read a timeline. You can create a timeline with the timeline_add()
     function
   type: Plugin
+  version: 2
   args:
   - name: timeline
     type: string
@@ -10498,6 +10846,7 @@
 - name: timeline_add
   description: Add a new query to a timeline.
   type: Function
+  version: 2
   args:
   - name: timeline
     type: string
@@ -10537,6 +10886,7 @@
 - name: timeline_delete
   description: Delete a super timeline.
   type: Function
+  version: 2
   args:
   - name: timeline
     type: string
@@ -10800,11 +11150,11 @@
 
     ```vql
     LET PidLookup <= to_dict(item={
-        SELECT str(str=Pid) AS _key, Name AS _value
+        SELECT Pid AS _key, Name AS _value
         FROM pslist()
     })
 
-    SELECT Pid, get(item=PidLookup, field=str(str=Pid))
+    SELECT Pid, get(item=PidLookup, field=Pid)
     FROM pslist()
     ```
   type: Function
@@ -10929,6 +11279,7 @@
     else you can force a type using the `type` parameter (`tgz` or
     `zip`).
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -11111,7 +11462,13 @@
   - windows_386_cgo
   - windows_amd64_cgo
 - name: upload_gcs
-  description: Upload files to GCS.
+  description: |
+    Upload files to GCS.
+
+    NOTE: This plugin is optional and not included by default from
+    Version 0.76 on. Use the `upload_s3()` plugin instead.
+
+    You can read how to [How To Set Up A GCS Bucket For File Uploads](https://docs.velociraptor.app/knowledge_base/tips/setup_gcs_storage)
   type: Function
   args:
   - name: file
@@ -11144,7 +11501,19 @@
   - windows_386_cgo
   - windows_amd64_cgo
 - name: upload_s3
-  description: Upload files to S3.
+  description: |
+    Upload files to S3.
+
+    This function can be used to upload to an AWS S3 bucket or to a
+    MinIO self hosted bucket.
+
+    Read [How To Set Up A MinIO For File
+    Uploads](https://docs.velociraptor.app/knowledge_base/tips/dropbox_server)
+
+    [This
+    presentation](https://training.velociraptor.app//modules/offline_collection/cloud_upload.html#/8)
+    shows how to safely configure an AWS bucket for use with this
+    plugin.
   type: Function
   version: 3
   args:
@@ -11297,6 +11666,7 @@
 - name: upload_webdav
   description: Upload files to a WebDAV server.
   type: Function
+  version: 2
   args:
   - name: file
     type: accessors.OSPath
@@ -11338,6 +11708,7 @@
 - name: uploads
   description: Retrieve information about a flow's uploads.
   type: Plugin
+  version: 2
   args:
   - name: client_id
     type: string
@@ -11385,6 +11756,7 @@
     possible in the general case to simply append strings. You need to use
     the `url()` function to build the proper url.
   type: Function
+  version: 2
   args:
   - name: scheme
     type: string
@@ -11432,6 +11804,7 @@
   description: Creates a new user from the server, or updates their permissions or
     reset their password.
   type: Function
+  version: 2
   args:
   - name: user
     type: string
@@ -11460,6 +11833,7 @@
 - name: user_delete
   description: Deletes a user from the server.
   type: Function
+  version: 2
   args:
   - name: user
     type: string
@@ -11483,6 +11857,7 @@
 - name: user_grant
   description: Grants the user the specified roles.
   type: Function
+  version: 2
   args:
   - name: user
     type: string
@@ -11508,6 +11883,35 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: user_message
+  description: Send the user a message which will appear in the user notification
+    view.
+  type: Function
+  version: 1
+  args:
+  - name: user
+    type: string
+    description: The user to create or update.
+    required: true
+  - name: message
+    type: ordereddict.Dict
+    description: The message to deliver to the user.
+  platforms:
+  - linux_amd64_cgo
+  free_form_args: true
+- name: user_messages
+  description: Emit the user's console messages.
+  type: Plugin
+  version: 1
+  args:
+  - name: clear
+    type: bool
+    description: If set also clear messages.
+  - name: user
+    type: string
+    description: If set we read another user's messages (must be admin).
+  platforms:
+  - linux_amd64_cgo
 - name: user_options
   description: |
     Update and read the user GUI options
@@ -11642,6 +12046,7 @@
 
     This function will verify the artifact and flag any potential errors or warnings.
   type: Function
+  version: 2
   args:
   - name: artifact
     type: string
@@ -11761,7 +12166,7 @@
     This accessor allows access to the content of VHDX files. Note that usually
     VHDX files are disk images with a partition table and an NTFS volume. You
     will usually need to wrap this accessor with a suitable Offset (to account
-    for the partition) and parse it with the the "raw_ntfs" accessor.
+    for the partition) and parse it with the "raw_ntfs" accessor.
 
     ### Example
 
@@ -11791,7 +12196,7 @@
     that usually VMDK files are disk images with a partition table and
     an NTFS volume. You will usually need to wrap this accessor with a
     suitable Offset (to account for the partition) and parse it with
-    the the "raw_ntfs" accessor.
+    the "raw_ntfs" accessor.
 
     The VMDK file should be the metadata file (i.e. not the extent
     files).  The extent files are expected to be in the same directory
@@ -12088,6 +12493,7 @@
     }
     ```
   type: Plugin
+  version: 2
   args:
   - name: name
     type: string
@@ -12153,6 +12559,7 @@
 
     {{% /notice %}}
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -12286,6 +12693,7 @@
     FROM watch_syslog(filename='/var/log/logfile.log')
     ```
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -12385,6 +12793,7 @@
     SELECT winpmem(image_path='c:/test.dd', compression='s2') FROM scope()
     ```
   type: Function
+  version: 2
   args:
   - name: service
     type: string
@@ -12511,7 +12920,6 @@
     Writes a string onto a file.
 
     This VQL function is a convenience wrapper to the copy() function.
-
   type: Function
   args:
   - name: data
@@ -12535,9 +12943,11 @@
     permissions: FILESYSTEM_WRITE,FILESYSTEM_READ
   platforms:
   - linux_amd64_cgo
+  - windows_amd64_cgo
 - name: write_jsonl
   description: Write a query into a JSONL file.
   type: Plugin
+  version: 2
   args:
   - name: filename
     type: accessors.OSPath
@@ -12707,6 +13117,7 @@
     signatures can be easily invalidated, robust rules typically have
     other conditions as a fallback so the impact should be minimal.
   type: Plugin
+  version: 2
   args:
   - name: rules
     type: string
@@ -12739,7 +13150,7 @@
     description: If set use this key to cache the  yara rules.
   - name: namespace
     type: string
-    description: The Yara namespece to use.
+    description: The Yara namespace to use.
   - name: vars
     type: ordereddict.Dict
     description: The Yara variables to use.
@@ -12842,6 +13253,7 @@
     loaded, it is not unloaded again. This way you can avoid having to
     download or hash the dll until actually needed.
   type: Plugin
+  version: 2
   args:
   - name: rules
     type: string
@@ -12874,7 +13286,7 @@
     description: If set use this key to cache the  yara rules.
   - name: namespace
     type: string
-    description: The Yara namespece to use.
+    description: The Yara namespace to use.
   - name: vars
     type: ordereddict.Dict
     description: The Yara variables to use.
@@ -12927,3 +13339,4 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+

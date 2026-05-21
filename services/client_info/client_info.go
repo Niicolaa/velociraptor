@@ -2,7 +2,7 @@
   The client info manager caches client information in memory for
   quick access without having to generate IO for each client record.
 
-  We maintain client stats as as:
+  We maintain client stats as:
 
   - Ping time - When the client was last seen - this is useful for the GUI
 
@@ -45,7 +45,9 @@ import (
 	"github.com/Velocidex/ordereddict"
 	actions_proto "www.velocidex.com/golang/velociraptor/actions/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/logging"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/journal"
 	"www.velocidex.com/golang/velociraptor/utils"
@@ -71,7 +73,7 @@ func (self *ClientInfoManager) ListClients(ctx context.Context) <-chan string {
 
 		for _, key := range self.storage.Keys() {
 			// Ignore the server - it is not a real client.
-			if key == "server" {
+			if key == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 				continue
 			}
 
@@ -203,7 +205,9 @@ func (self *ClientInfoManager) Start(
 			// When we teardown write the data to storage if needed.
 			defer func() {
 				err := self.storage.SaveSnapshot(ctx, config_obj, SYNC_UPDATE)
-				logger.Error("<red>ClientInfo Manager</>: SaveSnapshot: %v", err)
+				if err != nil {
+					logger.Error("<red>ClientInfo Manager</>: SaveSnapshot: %v", err)
+				}
 			}()
 
 			for {
@@ -226,7 +230,7 @@ func (self *ClientInfoManager) Start(
 		// Minions watch for Server.Internal.ClientInfoSnapshot to
 		// trigger their snapshot loading.
 		err := journal.WatchQueueWithCB(ctx, config_obj, wg,
-			"Server.Internal.ClientInfoSnapshot",
+			artifacts.CLIENT_INFO_SNAPSHOT_READY,
 			"ClientInfoManager",
 			self.ProcessSnapshotWrites)
 		if err != nil {
@@ -239,16 +243,16 @@ func (self *ClientInfoManager) Start(
 	// update. Minions listen for this event and immediately update
 	// the has_tasks field in the client record.
 	err := journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.ClientTasks",
+		artifacts.CLIENT_INFO_TASK,
 		"ClientInfoManager",
 		self.ProcessNotification)
 	if err != nil {
 		return err
 	}
 
-	// Watch for flow completions and unset the inflight status.
+	// Watch for flow completions and unset the in-flight status.
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"System.Flow.Completion",
+		artifacts.FLOW_COMPLETION,
 		"ClientInfoManager",
 		self.ProcessFlowCompletion)
 	if err != nil {
@@ -258,7 +262,7 @@ func (self *ClientInfoManager) Start(
 	// This is a queue that synchronizes all nodes on which flows are
 	// in flight.
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.ClientScheduled",
+		artifacts.CLIENT_INFO_SCHEDULED,
 		"ClientInfoManager",
 		self.ProcessInFlightNotifications)
 	if err != nil {
@@ -267,7 +271,7 @@ func (self *ClientInfoManager) Start(
 
 	// The master will be informed when new clients appear.
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.ClientPing",
+		artifacts.CLIENT_INFO_SYNC,
 		"ClientInfoManager",
 		self.ProcessPing)
 	if err != nil {
@@ -315,7 +319,7 @@ func (self *ClientInfoManager) ProcessInFlightNotifications(
 	}
 
 	remove, pres := row.GetBool("ClearFlows")
-	// Just clear all the flows - we dont need to track
+	// Just clear all the flows - we don't need to track
 	// them. This only happens when communicating with older
 	// clients that do not support it.
 	if remove || pres {
@@ -325,7 +329,7 @@ func (self *ClientInfoManager) ProcessInFlightNotifications(
 					return nil, utils.NotFoundError
 				}
 
-				// Just clear all the flows - we dont need to track
+				// Just clear all the flows - we don't need to track
 				// them. This only happens when communicating with older
 				// clients that do not support it.
 				client_info.InFlightFlows = nil
@@ -427,7 +431,7 @@ func (self *ClientInfoManager) MutationSync(
 					ordereddict.NewDict().
 						Set("Mutation", self.mutation_manager.GetMutation()).
 						Set("From", self.uuid),
-					"Server.Internal.ClientPing")
+					artifacts.CLIENT_INFO_SYNC)
 			}
 		}
 	}

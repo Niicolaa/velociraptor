@@ -99,7 +99,7 @@ func _build(self services.ScopeBuilder, from_scratch bool) vfilter.Scope {
 	artifact_plugin := NewArtifactRepositoryPlugin(self.Repository, self.Config)
 	// Pass the repository into the scope env. Plugins that need to
 	// consult the repository should always get it from this variable
-	// so it can be subsistuted with an isolate repository for
+	// so it can be substituted with an isolate repository for
 	// clients.
 	env.Set("Artifact", artifact_plugin).
 		Set(constants.SCOPE_REPOSITORY, self.Repository)

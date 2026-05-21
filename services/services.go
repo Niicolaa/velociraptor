@@ -32,7 +32,7 @@ var (
 // The service manager manages the orderly startup and shutdown of
 // various services. A new service manager is created at startup. The
 // service manager exports a Ctx and a Wg. When a service creates a
-// new goroutine, the Wg should be incremented and decremeneted when
+// new goroutine, the Wg should be incremented and decremented when
 // the goroutine exits.
 
 // The Ctx variable will be cancelled when the program needs to

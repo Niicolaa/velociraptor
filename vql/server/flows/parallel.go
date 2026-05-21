@@ -11,7 +11,6 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/result_sets"
 	"www.velocidex.com/golang/velociraptor/services"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -171,7 +170,7 @@ func (self ParallelPlugin) Info(
 		Name:     "parallelize",
 		Doc:      "Runs query on result batches in parallel.",
 		ArgType:  type_map.AddType(scope, &ParallelPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
 	}
 }
 
@@ -188,7 +187,7 @@ func breakIntoScopes(
 		return breakHuntIntoScopes(ctx, config_obj, scope, arg)
 	}
 
-	// Other sources are strored in a single reader.  Depending on
+	// Other sources are stored in a single reader.  Depending on
 	// the parameters, we need to get the reader from different
 	// places.
 	var err error
@@ -238,7 +237,7 @@ func breakIntoScopes(
 
 				// Mask hunt id since we already take
 				// care of it in breakHuntIntoScopes
-				// and we dont want source() plugin to
+				// and we don't want source() plugin to
 				// pick it up.
 				Set("HuntId", "").
 				Set("ArtifactName", arg.source_arg.Artifact).

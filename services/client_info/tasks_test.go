@@ -8,6 +8,7 @@ import (
 
 	"github.com/Velocidex/ordereddict"
 	"google.golang.org/protobuf/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
 	"www.velocidex.com/golang/velociraptor/flows"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
@@ -25,7 +26,9 @@ func (self *ClientInfoTestSuite) TestQueueMessages() {
 	client_info_manager, err := services.GetClientInfoManager(self.ConfigObj)
 	assert.NoError(self.T(), err)
 
-	message1 := &crypto_proto.VeloMessage{Source: "Server", SessionId: "1"}
+	message1 := &crypto_proto.VeloMessage{
+		Source:    constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
+		SessionId: "1"}
 	err = client_info_manager.QueueMessageForClient(
 		context.Background(),
 		self.client_id, message1,
@@ -60,7 +63,9 @@ func (self *ClientInfoTestSuite) TestFastQueueMessages() {
 	written := []*crypto_proto.VeloMessage{}
 
 	for i := 0; i < 10; i++ {
-		message := &crypto_proto.VeloMessage{Source: "Server", SessionId: fmt.Sprintf("%d", i)}
+		message := &crypto_proto.VeloMessage{
+			Source:    constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
+			SessionId: fmt.Sprintf("%d", i)}
 		err := client_info_manager.QueueMessageForClient(
 			context.Background(),
 			self.client_id, message,
@@ -75,7 +80,7 @@ func (self *ClientInfoTestSuite) TestFastQueueMessages() {
 		tasks, err := client_info_manager.PeekClientTasks(
 			context.Background(), self.client_id)
 		assert.NoError(self.T(), err)
-		return 10 == len(tasks)
+		return len(tasks) == 10
 	})
 
 	tasks, err := client_info_manager.GetClientTasks(
@@ -121,6 +126,8 @@ func (self *ClientInfoTestSuite) TestInFlightMessages() {
 		closer()
 	}
 
+	_ = flow_ids
+
 	client_info_manager, err := services.GetClientInfoManager(self.ConfigObj)
 	assert.NoError(self.T(), err)
 
@@ -157,7 +164,7 @@ func (self *ClientInfoTestSuite) TestInFlightMessages() {
 
 	assert.Equal(self.T(), len(tasks), 1)
 
-	// Should contains a status check request for all inflight flows.
+	// Should contains a status check request for all in-flight flows.
 	golden.Set("StatusChecks", tasks)
 
 	// Now complete the flows
@@ -176,8 +183,11 @@ func (self *ClientInfoTestSuite) TestInFlightMessages() {
 	}
 	runner.Close(self.Ctx)
 
-	client_info, err = client_info_manager.Get(self.Ctx, self.client_id)
-	assert.NoError(self.T(), err)
+	vtesting.WaitUntil(2*time.Second, self.T(), func() bool {
+		client_info, err = client_info_manager.Get(self.Ctx, self.client_id)
+		assert.NoError(self.T(), err)
+		return len(client_info.InFlightFlows) == 0
+	})
 
 	// Completing the flows removes the flows from the in flight set.
 	assert.Equal(self.T(), len(client_info.InFlightFlows), 0)
@@ -190,7 +200,7 @@ func (self *ClientInfoTestSuite) TestInFlightMessages() {
 	tasks, err = client_info_manager.GetClientTasks(self.Ctx, self.client_id)
 	assert.NoError(self.T(), err)
 
-	// Should conatin
+	// Should contain
 	assert.Equal(self.T(), len(tasks), 4)
 
 	client_info, err = client_info_manager.Get(self.Ctx, self.client_id)

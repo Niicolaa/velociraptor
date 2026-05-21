@@ -25,7 +25,6 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
 	utils_tempfile "www.velocidex.com/golang/velociraptor/utils/tempfile"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -121,10 +120,11 @@ func (self *TempfileFunction) Call(ctx context.Context,
 func (self TempfileFunction) Info(scope vfilter.Scope,
 	type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "tempfile",
-		Doc:      "Create a temporary file and write some data into it.",
-		ArgType:  type_map.AddType(scope, &_TempfileRequest{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_WRITE).Build(),
+		Name:    "tempfile",
+		Doc:     "Create a temporary file and write some data into it.",
+		ArgType: type_map.AddType(scope, &_TempfileRequest{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.FILESYSTEM_WRITE).Build(),
 	}
 }
 
@@ -185,10 +185,11 @@ func (self *TempdirFunction) Call(ctx context.Context,
 func (self TempdirFunction) Info(scope vfilter.Scope,
 	type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "tempdir",
-		Doc:      "Create a temporary directory. The directory will be removed when the query ends.",
-		ArgType:  type_map.AddType(scope, &_TempdirRequest{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_WRITE).Build(),
+		Name:    "tempdir",
+		Doc:     "Create a temporary directory. The directory will be removed when the query ends.",
+		ArgType: type_map.AddType(scope, &_TempdirRequest{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.FILESYSTEM_WRITE).Build(),
 	}
 }
 
@@ -213,7 +214,7 @@ func RemoveDirectory(retry int, tmpdir string, scope vfilter.Scope) {
 	if err != nil {
 		scope.Log("RemoveDirectory: Failed to remove %v: %v, reschedule", tmpdir, err)
 
-		// Add another detructor to try again a bit later.
+		// Add another destructor to try again a bit later.
 		err = scope.AddDestructor(func() {
 			RemoveTmpFile(retry+1, tmpdir, scope)
 		})
@@ -250,7 +251,7 @@ func RemoveTmpFile(retry int, tmpfile string, scope vfilter.Scope) {
 	if err != nil {
 		scope.Log("tempfile: Failed to remove %v: %v, reschedule", tmpfile, err)
 
-		// Add another detructor to try again a bit later.
+		// Add another destructor to try again a bit later.
 		err = scope.AddDestructor(func() {
 			RemoveTmpFile(retry+1, tmpfile, scope)
 		})

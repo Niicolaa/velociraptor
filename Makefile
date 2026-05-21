@@ -10,6 +10,9 @@ auto:
 test:
 	go test -race -v --tags server_vql ./...
 
+test_less:
+	go test -race -v --tags server_vql ./... 2>&1 | less
+
 test_light:
 	go test -v --tags server_vql ./...
 
@@ -39,6 +42,12 @@ darwin_m1:
 linux_m1:
 	go run make.go -v LinuxM1
 
+linux_sumo:
+	go run make.go -v LinuxSumo
+
+windows_sumo:
+	go run make.go -v WindowsSumo
+
 linux_arm64:
 	go run make.go -v LinuxArm64
 
@@ -51,6 +60,9 @@ linux_musl:
 
 linux_musl_debug:
 	go run make.go -v LinuxMuslDebug
+
+linux_debug:
+	go run make.go -v LinuxDebug
 
 linux:
 	go run make.go -v linux
@@ -92,9 +104,6 @@ debug_minion:
 debug_client:
 	dlv debug --init ./scripts/dlv.init --build-flags="-tags 'server_vql extras'" ./bin/ -- client -v --debug --debug_port 6061
 
-lint:
-	golangci-lint run
-
 # Do this after fetching the build artifacts with `gh run download <RunID>`
 UpdateCIArtifacts:
 	mv artifact/server/* artifacts/testdata/server/testcases/
@@ -120,3 +129,6 @@ deadcode:
 
 api_check:
 	python ./scripts/api_checker.py .
+
+container:
+	go run make.go -v container

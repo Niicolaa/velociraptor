@@ -20,7 +20,7 @@ import (
 	"github.com/Velocidex/ordereddict"
 	gowin "golang.org/x/sys/windows"
 	"www.velocidex.com/golang/velociraptor/acls"
-	"www.velocidex.com/golang/velociraptor/utils"
+	"www.velocidex.com/golang/velociraptor/utils/allocs"
 	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/windows"
@@ -31,7 +31,7 @@ import (
 var (
 	pool = sync.Pool{
 		New: func() interface{} {
-			buffer := utils.AllocateBuff(1024 * 10)
+			buffer := allocs.AllocateAlignedBuff(1024 * 10)
 			return &buffer
 		},
 	}
@@ -127,6 +127,7 @@ func (self HandlesPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *
 		Doc:      "Enumerate process handles.",
 		ArgType:  type_map.AddType(scope, &HandlesPluginArgs{}),
 		Metadata: vql.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
+		Version:  2,
 	}
 }
 
@@ -152,7 +153,7 @@ func SaneNtQuerySystemInformation(class uint32) ([]byte, error) {
 
 	// A hard upper limit on the buffer.
 	for buffer_size < 32*1024*1024 {
-		buffer := utils.AllocateBuff(buffer_size)
+		buffer := allocs.AllocateAlignedBuff(buffer_size)
 		status := windows.NtQuerySystemInformation(class,
 			&buffer[0], uint32(len(buffer)), &length)
 		if status == windows.STATUS_SUCCESS {
@@ -444,7 +445,7 @@ func GetThreadInfo(scope vfilter.Scope, handle syscall.Handle, result *HandleInf
 }
 
 func GetProcessName(scope vfilter.Scope, handle syscall.Handle) *ProcessHandleInfo {
-	buffer := utils.AllocateBuff(1024 * 2)
+	buffer := allocs.AllocateAlignedBuff(1024 * 2)
 
 	handle_info := windows.PROCESS_BASIC_INFORMATION{}
 	var length uint32

@@ -1,5 +1,5 @@
 /*
-  An implementation of the simple result selts. Simple results sets
+  An implementation of the simple result sets. Simple results sets
   are written as JSON files with a row index file. There have the
   following properties:
 

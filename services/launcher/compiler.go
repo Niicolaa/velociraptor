@@ -12,6 +12,7 @@ import (
 	actions_proto "www.velocidex.com/golang/velociraptor/actions/proto"
 	artifacts_proto "www.velocidex.com/golang/velociraptor/artifacts/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
@@ -96,7 +97,8 @@ func (self *Launcher) CompileSingleArtifact(
 		case "server_metadata":
 			client_info_manager, err := services.GetClientInfoManager(config_obj)
 			if err == nil {
-				md, err := client_info_manager.GetMetadata(ctx, "server")
+				md, err := client_info_manager.GetMetadata(ctx,
+					constants.VELOCIRAPTOR_SERVER_CLIENT_ID)
 				if err == nil {
 					value, pres := md.GetString(name)
 					if pres {
@@ -374,7 +376,7 @@ func mergeSources(
 }
 
 // Parse the query and determine if it requires any artifacts. If any
-// artifacts are found, then recursivly determine their dependencies
+// artifacts are found, then recursively determine their dependencies
 // etc.
 func GetQueryDependencies(
 	ctx context.Context, config_obj *config_proto.Config,
@@ -515,14 +517,14 @@ func PopulateArtifactsVQLCollectorArgs(
 			}
 
 			// Sub artifacts run in an isolated scope so
-			// the main artifact's env is not visibile to
+			// the main artifact's env is not visible to
 			// them. In the case of tools, we want the
 			// tool parameters to be visible to all sub
 			// artifacts as well. We therefore copy these
 			// into the artifact definitions as
 			// parameters. Note that dependent artifacts
 			// never declare their own tools themselves
-			// since we dont want them to fetch the tool
+			// since we don't want them to fetch the tool
 			// independently.
 			tmp := &actions_proto.VQLCollectorArgs{}
 			for _, tool := range artifact.Tools {

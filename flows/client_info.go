@@ -9,7 +9,7 @@ import (
 )
 
 // Process ClientInfo messages. These are processed directly on the
-// minions rathen than getting sent to event moniroting.
+// minions rather than getting sent to event monitoring.
 func (self *ClientFlowRunner) maybeProcessClientInfo(
 	ctx context.Context, client_id string, response *actions_proto.VQLResponse) error {
 	if response.Query == nil ||

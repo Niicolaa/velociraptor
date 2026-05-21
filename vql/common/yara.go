@@ -57,7 +57,7 @@ type YaraScanPluginArgs struct {
 	NumberOfHits    int64             `vfilter:"optional,field=number,doc=Stop after this many hits (1)."`
 	Blocksize       uint64            `vfilter:"optional,field=blocksize,doc=Blocksize for scanning (1mb)."`
 	Key             string            `vfilter:"optional,field=key,doc=If set use this key to cache the  yara rules."`
-	Namespace       string            `vfilter:"optional,field=namespace,doc=The Yara namespece to use."`
+	Namespace       string            `vfilter:"optional,field=namespace,doc=The Yara namespace to use."`
 	YaraVariables   *ordereddict.Dict `vfilter:"optional,field=vars,doc=The Yara variables to use."`
 	ForceBufferScan bool              `vfilter:"optional,field=force_buffers,doc=Force buffer scan in all cases."`
 }
@@ -73,6 +73,7 @@ func (self YaraScanPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "yara", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &YaraScanPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
@@ -164,7 +165,7 @@ func (self YaraScanPlugin) Call(
 }
 
 // Yara rules are cached in the scope cache so it is very efficient to
-// call the yara plugin repeatadly on the same rules - we do not need
+// call the yara plugin repeatedly on the same rules - we do not need
 // to recompile the rules all the time. We use the key as the cache or
 // the hash of the rules string if not provided.
 func getYaraRules(key, namespace, rules string,
@@ -311,7 +312,7 @@ func (self *scanReporter) scanRange(start, end uint64, f accessors.ReadSeekClose
 	// base_offset reflects the file offset where we scan.
 	for self.base_offset = start; self.base_offset < end; {
 		// Try to seek to the start offset - if it does not work then
-		// dont worry about it - just start from the beginning. This
+		// don't worry about it - just start from the beginning. This
 		// is needed for scanning devices which may not advance their
 		// own file pointer when read so we force a seek on each read.
 		_, _ = f.Seek(int64(self.base_offset), 0)
@@ -552,6 +553,7 @@ func (self YaraScanPlugin) Info(
 		Doc:      "Scan files using yara rules.",
 		ArgType:  type_map.AddType(scope, &YaraScanPluginArgs{}),
 		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 
@@ -560,7 +562,7 @@ type YaraProcPluginArgs struct {
 	Pid           int               `vfilter:"required,field=pid,doc=The pid to scan"`
 	Context       int               `vfilter:"optional,field=context,doc=Return this many bytes either side of a hit"`
 	Key           string            `vfilter:"optional,field=key,doc=If set use this key to cache the  yara rules."`
-	Namespace     string            `vfilter:"optional,field=namespace,doc=The Yara namespece to use."`
+	Namespace     string            `vfilter:"optional,field=namespace,doc=The Yara namespace to use."`
 	YaraVariables *ordereddict.Dict `vfilter:"optional,field=vars,doc=The Yara variables to use."`
 	NumberOfHits  int64             `vfilter:"optional,field=number,doc=Stop after this many hits (1)."`
 }
@@ -575,6 +577,7 @@ func (self YaraProcPlugin) Info(
 		Doc:      "Scan processes using yara rules.",
 		ArgType:  type_map.AddType(scope, &YaraProcPluginArgs{}),
 		Metadata: vql.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
+		Version:  2,
 	}
 }
 
@@ -587,6 +590,7 @@ func (self YaraProcPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "proc_yara", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &YaraProcPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)

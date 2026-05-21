@@ -113,7 +113,7 @@ func (self _AllFunction) Call(
 		return true
 	}
 
-	// We dont know what the item actually is - let the callback tell us
+	// We don't know what the item actually is - let the callback tell us
 	return evalAllCondition(ctx, scope, arg, arg.Items)
 }
 

@@ -97,7 +97,7 @@ type GlobOptions struct {
 
 // A tree of filters - each filter branches to a subfilter.  The tree
 // uses the glob component as keys to the next filter
-// globs. Eventually components reach the sentinel glober which cause
+// globs. Eventually components reach the sentinel globber which causes
 // the match to be reported.
 type Globber struct {
 	// Pointer back to the root globber.
@@ -106,7 +106,7 @@ type Globber struct {
 	filters map[_PathFilterer]*Globber
 	options GlobOptions
 
-	// A sentinel globbel is a special globber that reports its
+	// A sentinel globber is a special globber that reports its
 	// matches.
 	sentinel *_Sentinel
 }
@@ -205,7 +205,7 @@ func (self *Globber) Add(pattern *accessors.OSPath) error {
 // Adds the raw filter into the Globber tree. This is called
 // after any expansion.
 func (self *Globber) _add_filter(components []_PathFilterer, globs []string) error {
-	var current *Globber = self
+	var current = self
 
 	for _, element := range components {
 		next, pres := current.filters[element]

@@ -37,7 +37,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/utils/tempfile"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/filesystem"
 	"www.velocidex.com/golang/velociraptor/vql/functions"
@@ -590,11 +589,12 @@ func (self _HttpPlugin) Name() string {
 
 func (self _HttpPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.PluginInfo {
 	return &vfilter.PluginInfo{
-		Name:     self.Name(),
-		Doc:      "Make a http request.",
-		ArgType:  type_map.AddType(scope, &HttpPluginRequest{}),
-		Version:  3,
-		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
+		Name:    self.Name(),
+		Doc:     "Make a http request.",
+		ArgType: type_map.AddType(scope, &HttpPluginRequest{}),
+		Version: 3,
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.NETWORK).Build(),
 	}
 }
 
@@ -615,13 +615,7 @@ func GetProxy() func(*http.Request) (*url.URL, error) {
 // If the TLS Verification policy allows it, enable SkipVerify to
 // allow connections to invalid TLS servers.
 func EnableSkipVerifyHttp(client HTTPClient, config_obj *config_proto.ClientConfig) error {
-	http_client := client.(*httpClientWrapper)
-
-	if http_client == nil || http_client.Transport == nil {
-		return nil
-	}
-
-	t, ok := http_client.Transport.(*http.Transport)
+	t, ok := client.Transport().(*http.Transport)
 	if !ok {
 		return errors.New("http client does not have a compatible transport")
 	}
@@ -637,7 +631,7 @@ func parseURL(real_url string) (*url.URL, error) {
 		return nil, errInvalidUrl
 	}
 
-	// Unix domain URLs look like, eg:
+	// Unix domain URLs look like, e.g.:
 	//   /var/run/docker.sock:unix/info
 	// These are converted into a url.URL
 	//   Scheme: unix

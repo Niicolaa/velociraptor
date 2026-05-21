@@ -7,7 +7,7 @@ import (
 
 var (
 	/* Although it may seem that we can support arbitrary secret
-	   definitions, this is not the case. Secrects can only be used by
+	   definitions, this is not the case. Secrets can only be used by
 	   VQL plugins and functions that expects them and are never
 	   exposed to VQL queries. Therefore defining custom secrets is
 	   useless.
@@ -63,6 +63,11 @@ var (
 			"extra_headers",
 			"cookies",
 		},
+		YamlFields: []string{
+			"extra_params",
+			"extra_headers",
+			"cookies",
+		},
 		Template: map[string]string{
 			"skip_verify":   "FALSE",
 			"extra_params":  "# Add extra parameters as YAML strings\n#Foo: Value\n#Baz:Value2\n",
@@ -106,6 +111,22 @@ var (
 		Template: map[string]string{
 			"addresses":   "# Add URLs one per line\n# http://www.example.com/\n",
 			"skip_verify": "FALSE",
+		},
+	}, {
+		TypeName:    constants.ADX_CREDS,
+		Description: "Credentials to be used in adx_upload() calls.",
+		Verifier:    "x=>x.client_id AND x.client_secret AND x.tenant_id",
+		Fields: []string{
+			"cluster_url",
+			"database",
+			"client_id",
+			"client_secret",
+			"tenant_id",
+			"table",
+		},
+		Template: map[string]string{
+			"cluster_url": "https://your-cluster.region.kusto.windows.net",
+			"table":       "RawVelociraptorEvents",
 		},
 	}, {
 		TypeName:    constants.SMTP_CREDS,
