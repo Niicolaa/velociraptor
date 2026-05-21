@@ -1,0 +1,63 @@
+name: Generic.Applications.Chromium.IndexedDB
+description: |
+  Chromium based browsers and Electron applications store structured
+  data using IndexedDB. On disk this is a LevelDB database located in a
+  `IndexedDB/<origin>.indexeddb.leveldb` directory within each profile.
+
+  IndexedDB object store records hold their values encoded with the V8
+  structured clone algorithm (SerializedScriptValue). This artifact
+  iterates the LevelDB records and uses the `v8_deserialize()` function
+  to decode the values into native data structures.
+
+  Note: IndexedDB keys use a complex internal binary encoding. This
+  artifact emits the raw key bytes alongside the decoded value. Records
+  whose values cannot be decoded as V8 serialized data (for example
+  database metadata records) are skipped.
+
+precondition: SELECT OS From info() where OS = 'windows' OR OS = 'linux' OR OS = 'darwin'
+
+parameters:
+- name: IndexedDBGlobs
+  type: csv
+  default: |
+    Glob
+    C:/Users/*/AppData/Local/Google/Chrome/User Data/*/IndexedDB/*.leveldb
+    C:/Users/*/AppData/Local/Microsoft/Edge/User Data/*/IndexedDB/*.leveldb
+    C:/Users/*/AppData/Local/BraveSoftware/Brave-Browser/User Data/*/IndexedDB/*.leveldb
+    C:/Users/*/AppData/Roaming/*/IndexedDB/*.leveldb
+    C:/Users/*/AppData/Roaming/*/*/IndexedDB/*.leveldb
+    /home/*/.config/google-chrome/*/IndexedDB/*.leveldb
+    /home/*/.config/microsoft-edge/*/IndexedDB/*.leveldb
+    /home/*/.config/*/IndexedDB/*.leveldb
+    /Users/*/Library/Application Support/Google/Chrome/*/IndexedDB/*.leveldb
+    /Users/*/Library/Application Support/Microsoft Edge/*/IndexedDB/*.leveldb
+    /Users/*/Library/Application Support/*/IndexedDB/*.leveldb
+
+- name: Accessor
+  default: auto
+
+- name: AlsoUpload
+  type: bool
+  description: If selected we also upload the IndexedDB directory.
+
+sources:
+- query: |
+    LET Records(OSPath) =
+       SELECT Key AS RawKey,
+              v8_deserialize(data=Value) AS Value
+       FROM leveldb(file=OSPath, accessor=Accessor)
+
+    LET hits = SELECT OSPath,
+                      parse_string_with_regex(string=OSPath.Basename,
+                          regex='''(?P<Origin>.+)\.indexeddb\.leveldb$''').Origin AS Origin
+               FROM glob(globs=IndexedDBGlobs.Glob, accessor=Accessor)
+               WHERE log(message="Processing %v", args=OSPath)
+
+    SELECT * FROM foreach(row=hits, query={
+       SELECT OSPath, Origin, RawKey, Value,
+              if(condition=AlsoUpload, then=upload(file=OSPath, accessor=Accessor)) AS Upload
+       FROM Records(OSPath=OSPath)
+       -- Only emit records we could decode (v8_deserialize returns
+       -- NULL for records that are not V8 serialized values).
+       WHERE Value
+    })

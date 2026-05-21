@@ -9,6 +9,10 @@ description: |
   and values. The data is stored per website and can vary in
   structure.
 
+  The default globs cover the major Chromium based browsers as well as
+  the per-application Session Storage directories used by Electron
+  applications (Slack, Discord, Teams, Signal, Notion, ...).
+
 parameters:
 - name: SessionGlobs
   type: csv
@@ -17,11 +21,16 @@ parameters:
     C:/Users/*/AppData/Local/Google/Chrome/User Data/*/Session Storage
     C:/Users/*/AppData/Local/BraveSoftware/Brave*/User Data/*/Session Storage
     C:/Users/*/AppData/Local/Microsoft/Edge/User Data/*/Session Storage
+    C:/Users/*/AppData/Roaming/*/Session Storage
+    C:/Users/*/AppData/Roaming/*/*/Session Storage
     /home/*/.config/google-chrome/*/Session Storage
+    /home/*/.config/microsoft-edge/*/Session Storage
     /home/*/.config/chrome-remote-desktop/chrome-profile/*/Session Storage
+    /home/*/.config/*/Session Storage
     /Users/*/Library/Application Support/BraveSoftware/Brave*/*/Session Storage
     /Users/*/Library/Application Support/Google/Chrome/*/Session Storage
     /Users/*/Library/Application Support/Microsoft Edge/*/Session Storage
+    /Users/*/Library/Application Support/*/Session Storage
 
 - name: Accessor
 - name: AlsoUpload

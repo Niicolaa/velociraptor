@@ -921,6 +921,27 @@
   - windows_386_cgo
   - windows_amd64_cgo
   free_form_args: true
+- name: chrome_cache
+  description: Parse the Chromium disk cache (both the blockfile and the simple cache
+    formats) as used by Chrome, Edge and Electron applications.
+  type: Plugin
+  args:
+  - name: path
+    type: accessors.OSPath
+    description: Path to the Chromium cache directory (the directory containing the
+      index/data_N files or the <hash>_0 files).
+    required: true
+  - name: accessor
+    type: string
+    description: The accessor to use.
+  - name: include_content
+    type: bool
+    description: If set, the (stream 1) response body is included as bytes in the
+      Content column.
+  metadata:
+    permissions: FILESYSTEM_READ
+  platforms:
+  - linux_amd64_cgo
 - name: cidr_contains
   description: |
     Calculates if an IP address falls within a range of CIDR specified
@@ -12026,6 +12047,18 @@
   - linux_amd64_cgo
   - windows_386_cgo
   - windows_amd64_cgo
+- name: v8_deserialize
+  description: Decode a V8 structured clone (SerializedScriptValue) blob into a native
+    data structure. Used to decode IndexedDB values stored by Chromium/Electron applications.
+  type: Function
+  args:
+  - name: data
+    type: string
+    description: The V8 serialized (structured clone) blob to decode. This is typically
+      an IndexedDB value.
+    required: true
+  platforms:
+  - linux_amd64_cgo
 - name: vad
   description: Enumerate process memory regions.
   type: Plugin

@@ -1,0 +1,64 @@
+name: Generic.Applications.Chromium.Cache
+description: |
+  Chromium based browsers (Chrome, Edge, Brave) and Electron
+  applications store cached HTTP responses in a disk cache. Two on-disk
+  formats exist:
+
+    * The **blockfile** cache: an `index` file together with
+      `data_0`..`data_3` block files and `f_xxxxxx` external files.
+
+    * The **simple** cache: one file per entry named `<hash>_0`. This is
+      the default on most modern platforms.
+
+  This artifact uses the `chrome_cache()` plugin which auto-detects and
+  parses both formats. For each cached entry it returns the request URL,
+  the cached HTTP response headers and status code, and the entry
+  creation time.
+
+  Electron applications keep several caches per profile (`Cache`, `Code
+  Cache/js`, `Code Cache/wasm`, `Service Worker/CacheStorage`, ...) -
+  the default globs cover the common locations.
+
+precondition: SELECT OS From info() where OS = 'windows' OR OS = 'linux' OR OS = 'darwin'
+
+parameters:
+- name: CacheGlobs
+  type: csv
+  default: |
+    Glob
+    C:/Users/*/AppData/Local/Google/Chrome/User Data/*/Cache/Cache_Data
+    C:/Users/*/AppData/Local/Microsoft/Edge/User Data/*/Cache/Cache_Data
+    C:/Users/*/AppData/Local/BraveSoftware/Brave-Browser/User Data/*/Cache/Cache_Data
+    C:/Users/*/AppData/Roaming/*/Cache
+    C:/Users/*/AppData/Roaming/*/Cache/Cache_Data
+    C:/Users/*/AppData/Roaming/*/*/Cache/Cache_Data
+    /home/*/.cache/google-chrome/*/Cache/Cache_Data
+    /home/*/.config/*/Cache/Cache_Data
+    /Users/*/Library/Caches/Google/Chrome/*/Cache/Cache_Data
+    /Users/*/Library/Application Support/*/Cache/Cache_Data
+
+- name: URLFilter
+  description: A regex applied to the cached URL to filter results.
+  default: .
+  type: regex
+
+- name: IncludeContent
+  type: bool
+  description: If selected the cached response body is included as bytes in the Content column.
+
+- name: Accessor
+  default: auto
+
+sources:
+- query: |
+    LET hits = SELECT OSPath FROM glob(globs=CacheGlobs.Glob, accessor=Accessor)
+               WHERE log(message="Processing cache %v", args=OSPath)
+
+    SELECT * FROM foreach(row=hits, query={
+       SELECT OSPath AS CachePath,
+              URL, Key, CreationTime, StatusCode, DataSize, Headers,
+              Content
+       FROM chrome_cache(path=OSPath, accessor=Accessor,
+                         include_content=IncludeContent)
+       WHERE URL =~ URLFilter
+    })
