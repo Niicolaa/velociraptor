@@ -1,9 +1,86 @@
 package chromecache
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"testing"
+
+	"github.com/andybalholm/brotli"
 )
+
+func TestDecompress(t *testing.T) {
+	plain := []byte("the quick brown fox jumps over the lazy dog")
+
+	var gzBuf bytes.Buffer
+	gw := gzip.NewWriter(&gzBuf)
+	gw.Write(plain)
+	gw.Close()
+
+	var brBuf bytes.Buffer
+	bw := brotli.NewWriter(&brBuf)
+	bw.Write(plain)
+	bw.Close()
+
+	cases := []struct {
+		encoding string
+		data     []byte
+	}{
+		{"gzip", gzBuf.Bytes()},
+		{"br", brBuf.Bytes()},
+		{"identity", plain},
+		{"", plain},
+	}
+	for _, c := range cases {
+		got, err := Decompress(c.encoding, c.data)
+		if err != nil {
+			t.Fatalf("%s: %v", c.encoding, err)
+		}
+		if !bytes.Equal(got, plain) {
+			t.Fatalf("%s: got %q", c.encoding, got)
+		}
+	}
+
+	// Unknown encoding returns data unchanged.
+	got, _ := Decompress("magic", plain)
+	if !bytes.Equal(got, plain) {
+		t.Fatal("unknown encoding should pass through")
+	}
+}
+
+func TestSuggestFilename(t *testing.T) {
+	cases := []struct {
+		url         string
+		contentType string
+		want        string
+	}{
+		{"https://example.com/static/app.js?v=3", "application/javascript", "app.js"},
+		{"https://example.com/images/logo.png", "image/png", "logo.png"},
+		{"https://example.com/", "text/html", "index.html"},
+		{"https://example.com/api/data", "application/json", "data.json"},
+		{"https://example.com/path/", "text/css", "index.css"},
+		{"https://example.com/resource", "", "resource"},
+	}
+	for _, c := range cases {
+		got := SuggestFilename(c.url, c.contentType)
+		if got != c.want {
+			t.Errorf("SuggestFilename(%q, %q) = %q, want %q",
+				c.url, c.contentType, got, c.want)
+		}
+	}
+}
+
+func TestResponseHeader(t *testing.T) {
+	raw := []byte("HTTP/1.1 200 OK\x00Content-Encoding: gzip\x00Content-Type: text/html; charset=utf-8\x00\x00")
+	resp := ExtractHTTPResponse(raw)
+	if resp.Header("content-encoding") != "gzip" {
+		t.Fatalf("encoding %q", resp.Header("content-encoding"))
+	}
+	// Case insensitive lookup.
+	if resp.Header("CONTENT-TYPE") != "text/html; charset=utf-8" {
+		t.Fatalf("type %q", resp.Header("CONTENT-TYPE"))
+	}
+}
 
 func TestParseIndex(t *testing.T) {
 	data := make([]byte, indexHeaderSize+4*4)

@@ -60,14 +60,15 @@ sources:
 
     SELECT * FROM foreach(row=hits, query={
        SELECT CachePath,
-              URL, Key, EntryID, CreationTime, StatusCode, DataSize, Headers,
-              -- Upload the response body as a file using the in-memory
-              -- "data" accessor. The stored name is derived from the
-              -- cache directory and the per-entry hash so it is stable
-              -- and collision free.
+              URL, Key, EntryID, CreationTime, StatusCode, ContentType,
+              DataSize, Headers, Filename,
+              -- Upload the (decompressed) response body as a real file
+              -- using the in-memory "data" accessor. The name keeps the
+              -- resource filename / extension and is made unique by the
+              -- per-entry hash, eg ChromeCache/<dir>/<hash>/app.js
               if(condition=UploadContent AND Content,
                  then=upload(accessor="data", file=Content,
-                             name=("ChromeCache", CachePath.Basename, EntryID))) AS ContentUpload
+                             name=("ChromeCache", CachePath.Basename, EntryID, Filename))) AS ContentUpload
        FROM chrome_cache(path=CachePath, accessor=Accessor,
                          include_content=UploadContent)
        WHERE URL =~ URLFilter

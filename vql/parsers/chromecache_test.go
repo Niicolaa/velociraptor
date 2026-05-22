@@ -1,6 +1,8 @@
 package parsers_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"log"
@@ -154,6 +156,33 @@ func TestChromeCacheSimple(t *testing.T) {
 	assert.Equal(t, "https://example.com/b.js", getStr(rows[1], "URL"))
 	code, _ = rows[1].Get("StatusCode")
 	assert.Equal(t, int64(404), code)
+}
+
+func TestChromeCacheDecompressAndFilename(t *testing.T) {
+	dir := t.TempDir()
+
+	plain := []byte("console.log('hello from cache');")
+	var gz bytes.Buffer
+	gw := gzip.NewWriter(&gz)
+	_, _ = gw.Write(plain)
+	_ = gw.Close()
+
+	stream0 := []byte("\x00HTTP/1.1 200 OK\x00Content-Type: application/javascript\x00Content-Encoding: gzip\x00\x00")
+	writeSimpleCacheEntry(t, dir, "aaaabbbbccccdddd_0",
+		"https://cdn.example.com/static/app.js?v=9", stream0, gz.Bytes())
+
+	rows := runChromeCache(t, dir)
+	require.Len(t, rows, 1)
+	row := rows[0]
+
+	// The uploaded Content should be the DECOMPRESSED body, just like
+	// the Python reference produces.
+	content, _ := row.Get("Content")
+	assert.Equal(t, string(plain), string(content.([]byte)))
+
+	// And the suggested filename should carry the real extension.
+	assert.Equal(t, "app.js", getStr(row, "Filename"))
+	assert.Equal(t, "application/javascript", getStr(row, "ContentType"))
 }
 
 func TestChromeCacheBlockFile(t *testing.T) {

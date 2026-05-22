@@ -149,9 +149,10 @@ func (self ChromeCachePlugin) entryToRow(
 		key = string(keyData)
 	}
 
+	url := cacheKeyToURL(key)
 	row := ordereddict.NewDict().
 		Set("Key", key).
-		Set("URL", cacheKeyToURL(key)).
+		Set("URL", url).
 		Set("EntryID", fmt.Sprintf("%08x", entry.Hash)).
 		Set("CreationTime", chromecache.ChromiumTime(entry.CreationTime)).
 		Set("ReuseCount", entry.ReuseCount).
@@ -160,16 +161,22 @@ func (self ChromeCachePlugin) entryToRow(
 	// Stream 0 holds the serialized HttpResponseInfo (headers).
 	headerData, _ := reader.readData(entry.DataAddr[0], int(entry.DataSize[0]))
 	resp := chromecache.ExtractHTTPResponse(headerData)
+	contentType := ""
 	if resp != nil {
+		contentType = resp.Header("content-type")
 		row.Set("StatusCode", resp.ResponseCode).
 			Set("Headers", resp.Headers)
 	} else {
 		row.Set("StatusCode", nil).Set("Headers", nil)
 	}
+	row.Set("ContentType", contentType).
+		Set("Filename", chromecache.SuggestFilename(url, contentType))
 
 	if arg.IncludeContent {
+		// Stream 1 is the response body. Decompress it according to the
+		// Content-Encoding header so the result is the real resource.
 		body, _ := reader.readData(entry.DataAddr[1], int(entry.DataSize[1]))
-		row.Set("Content", body)
+		row.Set("Content", reader.decompress(resp, body, url))
 	}
 
 	return row
@@ -212,24 +219,29 @@ func (self ChromeCachePlugin) parseSimpleCache(
 			entryID = entryID[:idx]
 		}
 
+		url := cacheKeyToURL(entry.Key)
 		row := ordereddict.NewDict().
 			Set("Key", entry.Key).
-			Set("URL", cacheKeyToURL(entry.Key)).
+			Set("URL", url).
 			Set("EntryID", entryID).
 			Set("CreationTime", child.ModTime()).
 			Set("DataSize", len(entry.Stream1)).
 			Set("OSPath", child.OSPath())
 
 		resp := chromecache.ExtractHTTPResponse(entry.Stream0)
+		contentType := ""
 		if resp != nil {
+			contentType = resp.Header("content-type")
 			row.Set("StatusCode", resp.ResponseCode).
 				Set("Headers", resp.Headers)
 		} else {
 			row.Set("StatusCode", nil).Set("Headers", nil)
 		}
+		row.Set("ContentType", contentType).
+			Set("Filename", chromecache.SuggestFilename(url, contentType))
 
 		if arg.IncludeContent {
-			row.Set("Content", entry.Stream1)
+			row.Set("Content", reader.decompress(resp, entry.Stream1, url))
 		}
 
 		select {
@@ -265,6 +277,26 @@ type cacheDir struct {
 	root     *accessors.OSPath
 
 	blockFiles map[string][]byte
+}
+
+// decompress returns the response body decoded per its Content-Encoding,
+// falling back to the raw bytes on error.
+func (self *cacheDir) decompress(
+	resp *chromecache.ParsedResponse, body []byte, url string) []byte {
+	if resp == nil || len(body) == 0 {
+		return body
+	}
+	encoding := resp.Header("content-encoding")
+	if encoding == "" {
+		return body
+	}
+	decoded, err := chromecache.Decompress(encoding, body)
+	if err != nil {
+		self.scope.Log("DEBUG:chrome_cache: %v: failed to decompress %v body: %v",
+			url, encoding, err)
+		return body
+	}
+	return decoded
 }
 
 func (self *cacheDir) isBlockFile() bool {

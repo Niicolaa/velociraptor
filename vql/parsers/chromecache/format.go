@@ -35,13 +35,22 @@ package chromecache
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
+	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/Velocidex/ordereddict"
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -276,6 +285,173 @@ func ExtractHTTPResponse(stream0 []byte) *ParsedResponse {
 		}
 	}
 	return result
+}
+
+// Header returns the first value of the named response header (case
+// insensitive), or "" if absent.
+func (self *ParsedResponse) Header(name string) string {
+	if self == nil || self.Headers == nil {
+		return ""
+	}
+	for _, key := range self.Headers.Keys() {
+		if strings.EqualFold(key, name) {
+			value, _ := self.Headers.Get(key)
+			switch t := value.(type) {
+			case string:
+				return t
+			case []string:
+				if len(t) > 0 {
+					return t[0]
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// Decompress returns the body decompressed according to the HTTP
+// Content-Encoding (gzip, deflate, br, zstd). Unknown or empty encodings
+// return the data unchanged. On a decompression error the original data
+// is returned along with the error so callers can fall back to the raw
+// bytes.
+func Decompress(encoding string, data []byte) ([]byte, error) {
+	// Content-Encoding can in theory list several encodings; use the
+	// last applied one (the others are uncommon in practice).
+	enc := encoding
+	if idx := strings.LastIndex(encoding, ","); idx >= 0 {
+		enc = encoding[idx+1:]
+	}
+
+	switch strings.ToLower(strings.TrimSpace(enc)) {
+	case "", "identity":
+		return data, nil
+
+	case "gzip", "x-gzip":
+		r, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return data, err
+		}
+		defer r.Close()
+		return readAllLimited(r, data)
+
+	case "deflate":
+		// "deflate" is ambiguous: some servers send zlib-wrapped data,
+		// others send a raw deflate stream. Try zlib then raw flate.
+		if r, err := zlib.NewReader(bytes.NewReader(data)); err == nil {
+			defer r.Close()
+			if out, err := readAllLimited(r, nil); err == nil {
+				return out, nil
+			}
+		}
+		r := flate.NewReader(bytes.NewReader(data))
+		defer r.Close()
+		return readAllLimited(r, data)
+
+	case "br":
+		return readAllLimited(brotli.NewReader(bytes.NewReader(data)), data)
+
+	case "zstd":
+		r, err := zstd.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return data, err
+		}
+		defer r.Close()
+		return readAllLimited(r, data)
+
+	default:
+		return data, nil
+	}
+}
+
+// readAllLimited reads from r capping the output size. fallback is
+// returned on error.
+func readAllLimited(r io.Reader, fallback []byte) ([]byte, error) {
+	out, err := io.ReadAll(io.LimitReader(r, maxDecompressedSize))
+	if err != nil {
+		return fallback, err
+	}
+	return out, nil
+}
+
+const maxDecompressedSize = 200 * 1024 * 1024
+
+// commonMimeExtensions maps frequently seen MIME types to the file
+// extension a human would expect (Go's mime package sometimes returns
+// less friendly choices such as .htm or .jpe).
+var commonMimeExtensions = map[string]string{
+	"text/html":                ".html",
+	"text/css":                 ".css",
+	"text/plain":               ".txt",
+	"text/javascript":          ".js",
+	"application/javascript":   ".js",
+	"application/x-javascript": ".js",
+	"application/json":         ".json",
+	"application/wasm":         ".wasm",
+	"image/jpeg":               ".jpg",
+	"image/png":                ".png",
+	"image/gif":                ".gif",
+	"image/webp":               ".webp",
+	"image/svg+xml":            ".svg",
+	"image/x-icon":             ".ico",
+	"font/woff2":               ".woff2",
+	"font/woff":                ".woff",
+	"application/font-woff2":   ".woff2",
+}
+
+// SuggestFilename derives a sensible filename (with extension) for a
+// cached resource. It prefers the basename from the URL when it already
+// carries an extension, otherwise it appends an extension derived from
+// the Content-Type header - mirroring the behaviour of the Python
+// ccl_chromium_cache reference.
+func SuggestFilename(rawurl, contentType string) string {
+	name := ""
+	if u, err := url.Parse(rawurl); err == nil {
+		// A path ending in "/" refers to a directory index.
+		if u.Path == "" || strings.HasSuffix(u.Path, "/") {
+			name = "index"
+		} else {
+			name = path.Base(u.Path)
+		}
+	}
+	if name == "" || name == "." || name == "/" {
+		name = "index"
+	}
+	name = sanitizeFilename(name)
+
+	if path.Ext(name) != "" {
+		return name
+	}
+
+	return name + extensionForMIME(contentType)
+}
+
+func extensionForMIME(contentType string) string {
+	if contentType == "" {
+		return ""
+	}
+	mediaType := contentType
+	if idx := strings.Index(contentType, ";"); idx >= 0 {
+		mediaType = contentType[:idx]
+	}
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+
+	if ext, pres := commonMimeExtensions[mediaType]; pres {
+		return ext
+	}
+	if exts, err := mime.ExtensionsByType(mediaType); err == nil && len(exts) > 0 {
+		return exts[0]
+	}
+	return ""
+}
+
+func sanitizeFilename(name string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|', 0:
+			return '_'
+		}
+		return r
+	}, name)
 }
 
 // SimpleEntry holds the data extracted from a simple-cache "<hash>_0"
