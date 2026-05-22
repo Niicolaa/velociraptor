@@ -152,6 +152,7 @@ func (self ChromeCachePlugin) entryToRow(
 	row := ordereddict.NewDict().
 		Set("Key", key).
 		Set("URL", cacheKeyToURL(key)).
+		Set("EntryID", fmt.Sprintf("%08x", entry.Hash)).
 		Set("CreationTime", chromecache.ChromiumTime(entry.CreationTime)).
 		Set("ReuseCount", entry.ReuseCount).
 		Set("DataSize", entry.DataSize[1])
@@ -204,9 +205,17 @@ func (self ChromeCachePlugin) parseSimpleCache(
 			continue
 		}
 
+		// The file stem (the 16 hex digit hash) is a stable per-entry
+		// identifier.
+		entryID := child.Name()
+		if idx := len(entryID) - 2; idx > 0 && entryID[idx:] == "_0" {
+			entryID = entryID[:idx]
+		}
+
 		row := ordereddict.NewDict().
 			Set("Key", entry.Key).
 			Set("URL", cacheKeyToURL(entry.Key)).
+			Set("EntryID", entryID).
 			Set("CreationTime", child.ModTime()).
 			Set("DataSize", len(entry.Stream1)).
 			Set("OSPath", child.OSPath())

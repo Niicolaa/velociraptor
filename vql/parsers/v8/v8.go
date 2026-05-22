@@ -44,6 +44,7 @@ type SerializationTag = byte
 
 const (
 	tagVersion          SerializationTag = 0xFF
+	tagTrailerOffset    SerializationTag = 0xFE
 	tagPadding          SerializationTag = '\x00'
 	tagVerifyObjectCount SerializationTag = '?'
 	tagTheHole          SerializationTag = '-'
@@ -120,18 +121,36 @@ func Deserialize(data []byte) (interface{}, error) {
 		maxDepth: 256,
 	}
 
-	// Consume the leading version header(s). The blob normally starts
-	// with 0xFF <version-varint>. Some producers emit it twice.
-	for d.pos < len(d.data) && d.data[d.pos] == tagVersion {
-		d.pos++
-		v, err := d.readVarint()
-		if err != nil {
-			return nil, err
+	// Consume the leading header(s) before the first real value tag.
+	//
+	// IndexedDB values are doubly wrapped: the Blink layer emits
+	// "0xFF <blink-version>" and the V8 layer emits "0xFF <v8-version>"
+	// so we may see the version tag more than once. Chrome 102+ also
+	// emits a trailer-offset header ("0xFE <uint64 offset><uint32
+	// size>", big endian) which we skip.
+	for d.pos < len(d.data) {
+		switch d.data[d.pos] {
+		case tagVersion:
+			d.pos++
+			v, err := d.readVarint()
+			if err != nil {
+				return nil, err
+			}
+			d.version = uint32(v)
+
+		case tagTrailerOffset:
+			// tag (1) + offset (8) + size (4)
+			if d.pos+13 > len(d.data) {
+				return nil, errors.New("v8: truncated trailer offset header")
+			}
+			d.pos += 13
+
+		default:
+			return d.readValue()
 		}
-		d.version = uint32(v)
 	}
 
-	return d.readValue()
+	return nil, errors.New("v8: no value found after headers")
 }
 
 // unwrap strips the IndexedDB value wrapper (and optional Snappy
