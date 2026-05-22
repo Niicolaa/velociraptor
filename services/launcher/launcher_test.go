@@ -120,23 +120,23 @@ func (self *LauncherTestSuite) TestCompilingWithTools() {
 	launcher, err := services.GetLauncher(self.ConfigObj)
 	assert.NoError(self.T(), err)
 
-	compiled, err := launcher.CompileCollectorArgs(ctx, self.ConfigObj,
+	_, err = launcher.CompileCollectorArgs(ctx, self.ConfigObj,
 		acl_manager, repository, services.CompilerOptions{}, request)
 	assert.Error(self.T(), err)
 
 	// Now make the tool download succeed. Compiling should work
 	// and we should calculate the hash.
 	status = 200
-	compiled, err = launcher.CompileCollectorArgs(
+	_, err = launcher.CompileCollectorArgs(
 		ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
 
-	// Now that we already know the hash, we dont care about
+	// Now that we already know the hash, we don't care about
 	// downloading the file ourselves - further compiles will work
 	// automatically.
 	status = 404
-	compiled, err = launcher.CompileCollectorArgs(
+	compiled, err := launcher.CompileCollectorArgs(
 		ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
@@ -548,7 +548,7 @@ func (self *LauncherTestSuite) TestCompilingMultipleLimitedArtifacts() {
 	json.Dump(compiled)
 }
 
-// Server events need to be compiled slighly differently - each source
+// Server events need to be compiled slightly differently - each source
 // needs to run in its own goroutine.
 func (self *LauncherTestSuite) TestCompilingServerEvents() {
 	definitions := []string{`
@@ -667,7 +667,7 @@ sources:
 	launcher, err := services.GetLauncher(self.ConfigObj)
 	assert.NoError(self.T(), err)
 
-	compiled, err := launcher.CompileCollectorArgs(
+	_, err = launcher.CompileCollectorArgs(
 		ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.Error(self.T(), err)
@@ -680,7 +680,7 @@ sources:
 
 	// Should be fine now.
 	acl_manager = acl_managers.NewServerACLManager(self.ConfigObj, "UserX")
-	compiled, err = launcher.CompileCollectorArgs(
+	compiled, err := launcher.CompileCollectorArgs(
 		ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
@@ -712,7 +712,7 @@ sources:
 	launcher, err := services.GetLauncher(self.ConfigObj)
 	assert.NoError(self.T(), err)
 
-	compiled, err := launcher.CompileCollectorArgs(
+	_, err = launcher.CompileCollectorArgs(
 		self.Ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.Error(self.T(), err)
@@ -725,7 +725,7 @@ sources:
 
 	// Try again - this is not enough though because the artifact is
 	// not marked as "basic"
-	compiled, err = launcher.CompileCollectorArgs(
+	_, err = launcher.CompileCollectorArgs(
 		self.Ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.Error(self.T(), err)
@@ -744,7 +744,7 @@ sources:
 
 	// Should be fine now.
 	acl_manager = acl_managers.NewServerACLManager(self.ConfigObj, "UserX")
-	compiled, err = launcher.CompileCollectorArgs(
+	compiled, err := launcher.CompileCollectorArgs(
 		self.Ctx, self.ConfigObj, acl_manager, repository,
 		services.CompilerOptions{}, request)
 	assert.NoError(self.T(), err)
@@ -979,7 +979,7 @@ func (self *LauncherTestSuite) TestParameterTypesDepsQuery() {
 	defer scope.Close()
 
 	// Passing types parameters to artifact plugin should pass
-	// them without interferance.
+	// them without interference.
 	queries := []string{
 		"SELECT BoolValue FROM Artifact.Test.Artifact.Types(BoolValue=0)",
 		"SELECT BoolValue FROM Artifact.Test.Artifact.Types(BoolValue=1)",
@@ -1416,7 +1416,8 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 
 	defer utils.SetFlowIdForTests(flow_id)()
 
-	res, err := launcher.GetFlows(self.Ctx, self.ConfigObj, "server",
+	res, err := launcher.GetFlows(self.Ctx, self.ConfigObj,
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 		result_sets.ResultSetOptions{}, 0, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(res.Items))
@@ -1426,21 +1427,23 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 		self.Ctx, self.ConfigObj, acl_manager,
 		repository, &flows_proto.ArtifactCollectorArgs{
 			Creator:   user,
-			ClientId:  "server",
+			ClientId:  constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 			Artifacts: []string{"Generic.Client.Info"},
 		}, utils.SyncCompleter)
 
 	assert.NoError(t, err)
 
-	res, err = launcher.GetFlows(self.Ctx, self.ConfigObj, "server",
+	res, err = launcher.GetFlows(self.Ctx, self.ConfigObj,
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 		result_sets.ResultSetOptions{}, 0, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, len(res.Items), 1)
 	assert.Equal(t, res.Items[0].SessionId, flow_id)
 
-	// Now delete the flow asyncronously
+	// Now delete the flow asynchronously
 	_, err = launcher.Storage().DeleteFlow(
-		self.Ctx, self.ConfigObj, "server",
+		self.Ctx, self.ConfigObj,
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 		flow_id, constants.PinnedServerName,
 		services.DeleteFlowOptions{
 			ReallyDoIt: true,
@@ -1449,7 +1452,7 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 	assert.NoError(t, err)
 
 	// Index is not updated yet
-	idx := self.getIndex("server")
+	idx := self.getIndex(constants.VELOCIRAPTOR_SERVER_CLIENT_ID)
 	assert.Equal(t, len(idx), 1)
 	idx_flow_id, _ := idx[0].GetString("FlowId")
 	assert.Equal(t, flow_id, idx_flow_id)
@@ -1466,7 +1469,8 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 
 		datastore.FlushDatastore(self.ConfigObj)
 
-		res, err = launcher.GetFlows(self.Ctx, self.ConfigObj, "server",
+		res, err = launcher.GetFlows(self.Ctx, self.ConfigObj,
+			constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 			result_sets.ResultSetOptions{}, 0, 10)
 		assert.NoError(t, err)
 		time.Sleep(time.Second)
@@ -1479,15 +1483,16 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 		self.Ctx, self.ConfigObj, acl_manager,
 		repository, &flows_proto.ArtifactCollectorArgs{
 			Creator:   user,
-			ClientId:  "server",
+			ClientId:  constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 			Artifacts: []string{"Generic.Client.Info"},
 		}, utils.SyncCompleter)
 	assert.NoError(t, err)
 	assert.Equal(t, new_flow_id, flow_id)
 
-	// Now delete the flow syncronously
+	// Now delete the flow synchronously
 	_, err = launcher.Storage().DeleteFlow(
-		self.Ctx, self.ConfigObj, "server",
+		self.Ctx, self.ConfigObj,
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID,
 		flow_id, constants.PinnedServerName,
 		services.DeleteFlowOptions{
 			ReallyDoIt: true,
@@ -1498,7 +1503,7 @@ func (self *LauncherTestSuite) _TestDelete(t *assert.R) {
 	datastore.FlushDatastore(self.ConfigObj)
 
 	// This time the index is reset immediately.
-	idx = self.getIndex("server")
+	idx = self.getIndex(constants.VELOCIRAPTOR_SERVER_CLIENT_ID)
 	assert.Equal(t, len(idx), 0)
 }
 

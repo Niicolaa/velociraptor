@@ -29,6 +29,10 @@ import (
 	_ "www.velocidex.com/golang/velociraptor/result_sets/simple"
 )
 
+const (
+	FORCE_REFRESH = true
+)
+
 var (
 	testArtifact = `
 name: Test.Artifact
@@ -169,6 +173,7 @@ func (self *TestSuite) TestHuntsSource() {
 	hunt_rs_writer, err := result_sets.NewResultSetWriter(
 		file_store_factory, hunt_path_manager, nil,
 		utils.SyncCompleter, true /* truncate */)
+	assert.NoError(self.T(), err)
 
 	gen := &ConstantIdGenerator{}
 	defer utils.SetIdGenerator(gen)()
@@ -220,7 +225,7 @@ func (self *TestSuite) TestHuntsSource() {
 	}
 
 	hunt_rs_writer.Close()
-	hunt_dispatcher.Refresh(self.Ctx, self.ConfigObj)
+	hunt_dispatcher.Refresh(self.Ctx, self.ConfigObj, FORCE_REFRESH)
 
 	builder := services.ScopeBuilder{
 		Config:     self.ConfigObj,

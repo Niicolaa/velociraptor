@@ -27,12 +27,12 @@ func (self *HuntManager) ProcessMutation(
 	config_obj *config_proto.Config,
 	row *ordereddict.Dict) error {
 
-	mutation := &api_proto.HuntMutation{}
 	mutation_cell, pres := row.Get("mutation")
 	if !pres {
 		return errors.New("No mutation")
 	}
 
+	mutation := &api_proto.HuntMutation{}
 	err := utils.ParseIntoProtobuf(mutation_cell, mutation)
 	if err != nil {
 		return err
@@ -57,6 +57,10 @@ func (self *HuntManager) processMutation(
 		return err
 	}
 
+	if mutation.Stats == nil {
+		mutation.Stats = &api_proto.HuntStats{}
+	}
+
 	modification := dispatcher.ModifyHuntObject(
 		ctx, mutation.HuntId,
 		func(hunt_obj *api_proto.Hunt) services.HuntModificationAction {
@@ -69,12 +73,8 @@ func (self *HuntManager) processMutation(
 				hunt_obj.Stats = &api_proto.HuntStats{}
 			}
 
-			if mutation.Stats == nil {
-				mutation.Stats = &api_proto.HuntStats{}
-			}
-
 			// The following are very frequent modifications that
-			// other frontends dont care about so we write them lazily
+			// other frontends don't care about so we write them lazily
 			// to the datastore.
 			if mutation.Stats.TotalClientsScheduled > 0 {
 				hunt_obj.Stats.TotalClientsScheduled +=
@@ -94,6 +94,23 @@ func (self *HuntManager) processMutation(
 				hunt_obj.Stats.TotalClientsWithErrors +=
 					mutation.Stats.TotalClientsWithErrors
 
+				modification = services.HuntFlushToDatastoreAsync
+			}
+
+			if mutation.Stats.TotalFinishedClients > 0 {
+				hunt_obj.Stats.TotalFinishedClients +=
+					mutation.Stats.TotalFinishedClients
+
+				modification = services.HuntFlushToDatastoreAsync
+			}
+
+			if mutation.Stats.TotalUploadedBytes > 0 {
+				hunt_obj.Stats.TotalUploadedBytes += mutation.Stats.TotalUploadedBytes
+				modification = services.HuntFlushToDatastoreAsync
+			}
+
+			if mutation.Stats.TotalCollectedRows > 0 {
+				hunt_obj.Stats.TotalCollectedRows += mutation.Stats.TotalCollectedRows
 				modification = services.HuntFlushToDatastoreAsync
 			}
 
@@ -122,32 +139,10 @@ func (self *HuntManager) processMutation(
 				// to participate connected clients.
 				modification = services.HuntTriggerParticipation
 
+				// Deprecated - we no longer archive hunts - they must
+				// be deleted.
 			} else if mutation.State == api_proto.Hunt_ARCHIVED &&
 				hunt_obj.State != api_proto.Hunt_ARCHIVED {
-
-				hunt_obj.State = api_proto.Hunt_ARCHIVED
-
-				// For archiving hunts we also send a notification to
-				// this queue.
-				row := ordereddict.NewDict().
-					Set("Timestamp", utils.GetTime().Now().UTC().Unix()).
-					Set("HuntId", mutation.HuntId).
-					Set("User", mutation.User)
-
-				// Alert listeners that the hunt is being archived.
-				journal, err := services.GetJournal(config_obj)
-				if err != nil {
-					return services.HuntPropagateChanges
-				}
-
-				err = journal.PushRowsToArtifact(ctx, config_obj,
-					[]*ordereddict.Dict{row}, "System.Hunt.Archive",
-					"server", mutation.HuntId)
-				if err != nil {
-					return services.HuntPropagateChanges
-				}
-
-				modification = services.HuntPropagateChanges
 
 				// Actually delete the hunt from disk - send all the
 				// dispatchers the updated hunt object.
@@ -196,7 +191,8 @@ func (self *HuntManager) processMutation(
 
 	// Force the dispatcher to write the index.
 	if modification == services.HuntPropagateChanges {
-		// return dispatcher.Refresh(ctx, config_obj)
+		return nil
+		//return dispatcher.Refresh(ctx, config_obj)
 	}
 
 	return nil
@@ -217,7 +213,8 @@ func (self *HuntManager) directlyAssignFlow(
 	if err != nil {
 		return err
 	}
-	_, err = launcher.GetFlowDetails(
+
+	flow_obj, err := launcher.GetFlowDetails(
 		ctx, config_obj, services.GetFlowOptions{},
 		assignment.ClientId, assignment.FlowId)
 	if err != nil {
@@ -249,6 +246,9 @@ func (self *HuntManager) directlyAssignFlow(
 	mutation.Stats = &api_proto.HuntStats{
 		TotalClientsScheduled:   1,
 		TotalClientsWithResults: 1,
+		TotalUploadedBytes:      flow_obj.Context.TotalUploadedBytes,
+		TotalCollectedRows:      flow_obj.Context.TotalCollectedRows,
+		TotalFinishedClients:    1,
 	}
 
 	return self.processMutation(ctx, config_obj, mutation)

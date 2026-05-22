@@ -28,7 +28,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
 	utils "www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/readers"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -84,22 +83,22 @@ func (self _SRUMLookupId) Call(
 		// Use a managed reader
 		reader, err := readers.NewAccessorReader(scope, arg.Accessor, arg.Filename, 10000)
 		if err != nil {
-			scope.Log("srum_lookup_id: Unable to open file %s: %v",
+			scope.Log("srum_lookup_id: NewAccessorReader: Unable to open file %s: %v",
 				arg.Filename, err)
 			return &vfilter.Null{}
 		}
 		defer reader.Close()
 
-		ese_ctx, err := parser.NewESEContext(reader)
+		ese_ctx, err := parser.NewESEContext(reader, reader.MaxSize())
 		if err != nil {
-			scope.Log("srum_lookup_id: Unable to open file %s: %v",
+			scope.Log("srum_lookup_id: NewESEContext: Unable to open file %s: %v",
 				arg.Filename, err)
 			return &vfilter.Null{}
 		}
 
 		catalog, err := parser.ReadCatalog(ese_ctx)
 		if err != nil {
-			scope.Log("srum_lookup_id: Unable to open file %s: %v",
+			scope.Log("srum_lookup_id: ReadCatalog: Unable to open file %s: %v",
 				arg.Filename, err)
 			return &vfilter.Null{}
 		}
@@ -199,7 +198,7 @@ func (self _ESEPlugin) Call(
 		}
 		defer reader.Close()
 
-		ese_ctx, err := parser.NewESEContext(reader)
+		ese_ctx, err := parser.NewESEContext(reader, reader.MaxSize())
 		if err != nil {
 			scope.Log("parse_ese: Unable to open file %s: %v",
 				arg.Filename, err)
@@ -226,8 +225,8 @@ func (self _ESEPlugin) Call(
 		}
 
 		if err != nil {
-			scope.Log("parse_ese: Unable to dump file %s: %v",
-				arg.Filename, err)
+			scope.Log("parse_ese: Unable to dump file %s (table %v): %v",
+				arg.Filename, arg.Table, err)
 			return
 		}
 	}()
@@ -240,7 +239,7 @@ func (self _ESEPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfi
 		Name:     "parse_ese",
 		Doc:      "Opens an ESE file and dump a table.",
 		ArgType:  type_map.AddType(scope, &_ESEArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 
@@ -272,14 +271,15 @@ func (self _ESECatalogPlugin) Call(
 			arg.Accessor = "auto"
 		}
 
-		reader, err := readers.NewAccessorReader(scope, arg.Accessor, arg.Filename, 10000)
+		reader, err := readers.NewAccessorReader(
+			scope, arg.Accessor, arg.Filename, 10000)
 		if err != nil {
 			scope.Log("parse_ese_catalog: %v", err)
 			return
 		}
 		defer reader.Close()
 
-		ese_ctx, err := parser.NewESEContext(reader)
+		ese_ctx, err := parser.NewESEContext(reader, reader.MaxSize())
 		if err != nil {
 			scope.Log("parse_ese_catalog: Unable to open file %s: %v",
 				arg.Filename, err)
@@ -317,7 +317,7 @@ func (self _ESECatalogPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMa
 		Name:     "parse_ese_catalog",
 		Doc:      "Opens an ESE file and dump the schema.",
 		ArgType:  type_map.AddType(scope, &_ESECatalogArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 

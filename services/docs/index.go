@@ -3,6 +3,7 @@ package docs
 import (
 	"archive/zip"
 	"context"
+	"os"
 
 	"github.com/Velocidex/velociraptor-site-search/api"
 	"www.velocidex.com/golang/velociraptor/datastore"
@@ -80,6 +81,29 @@ func (self *DocManager) unpackIndex(
 	ctx context.Context,
 	inventory_path, index_path fs_api.FSPathSpec) error {
 
+	// Purge any existing indexes before we unpack the new index to
+	// ensure the files are properly closed.
+	err := api.PurgeCache()
+	if err != nil {
+		return err
+	}
+
+	db, err := datastore.GetDB(self.config_obj)
+	if err != nil {
+		return err
+	}
+	path_manager := paths.NewDocsIndexPathManager()
+	index_filename := datastore.AsFilestoreFilename(
+		db, self.config_obj, path_manager.Index())
+
+	// If the docs index already exists we can remove it for a
+	// smoother upgrade. This handles Bleve V1 -> Bleve V2 upgrade
+	// smoothly.
+	stats, err := os.Lstat(index_filename)
+	if err == nil && stats.IsDir() {
+		_ = os.RemoveAll(index_filename)
+	}
+
 	file_store_factory := file_store.GetFileStore(self.config_obj)
 	reader, err := file_store_factory.ReadFile(inventory_path)
 	if err != nil {
@@ -98,13 +122,17 @@ func (self *DocManager) unpackIndex(
 	}
 
 	for _, file := range zipfd.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+
 		fd, err := file.Open()
 		if err != nil {
 			return err
 		}
 
 		w, err := file_store_factory.WriteFile(
-			index_path.AddUnsafeChild(file.Name))
+			index_path.AddUnsafeChild(utils.SplitComponents(file.Name)...))
 		if err != nil {
 			return err
 		}
@@ -123,40 +151,33 @@ func (self *DocManager) unpackIndex(
 
 // Gets a working index.  If the index does not exist in the file
 // store, we use the inventory service to fetch it.
-func (self *DocManager) GetIndex(ctx context.Context) (res api.Index, err error) {
+func (self *DocManager) GetIndex(ctx context.Context) (res *api.Index, err error) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	if self.index != nil {
-		return self.index, nil
-	}
-
-	inventory_path, index_path, unpack, err := self.shouldUnpackTool(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if unpack {
-		err = self.unpackIndex(ctx, inventory_path, index_path)
+	if self.indexFilename() == "" {
+		inventory_path, index_path, unpack, err := self.shouldUnpackTool(ctx)
 		if err != nil {
 			return nil, err
 		}
+
+		if unpack {
+			err = self.unpackIndex(ctx, inventory_path, index_path)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		db, err := datastore.GetDB(self.config_obj)
+		if err != nil {
+			return nil, err
+		}
+
+		// The raw underlying filename on disk.
+		self.index_filename = datastore.AsFilestoreFilename(
+			db, self.config_obj, index_path)
+		self.index_filename_age = utils.GetTime().Now()
 	}
 
-	db, err := datastore.GetDB(self.config_obj)
-	if err != nil {
-		return nil, err
-	}
-
-	// The raw underlying filename on disk.
-	raw_filename := datastore.AsFilestoreFilename(
-		db, self.config_obj, index_path)
-
-	index, err := api.OpenIndex(raw_filename)
-	if err != nil {
-		return nil, err
-	}
-
-	self.index = index
-	return index, err
+	return api.OpenIndex(self.index_filename)
 }

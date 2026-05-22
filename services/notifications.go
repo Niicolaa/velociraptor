@@ -7,7 +7,7 @@ package services
 // which time, the channel will be closed.
 
 // Notifications do not carry actual data, they just indicate that an
-// event occured. Callers need to go back to actually do something
+// event occurred. Callers need to go back to actually do something
 // with that information (read the filestore etc). Notifications are
 // not meant to be reliable - it is possible to miss a notification or
 // to receive too many notifications while no change

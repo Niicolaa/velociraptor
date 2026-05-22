@@ -106,7 +106,7 @@ func IsCtxDone(ctx context.Context) bool {
 	}
 }
 
-// Alterantives to context.WithCancel to see when contexts are being
+// Alternatives to context.WithCancel to see when contexts are being
 // cancelled.
 func WithCancel(ctx context.Context) (context.Context, func()) {
 	res, cancel := context.WithCancel(ctx)
@@ -115,7 +115,7 @@ func WithCancel(ctx context.Context) (context.Context, func()) {
 	}
 }
 
-// Alterantives to context.WithTimeout to see when contexts are being
+// Alternatives to context.WithTimeout to see when contexts are being
 // cancelled.
 func WithTimeout(ctx context.Context, wait time.Duration) (
 	context.Context, func()) {

@@ -24,8 +24,8 @@ import (
 	"www.velocidex.com/golang/evtx"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -49,6 +49,7 @@ func (self _ParseEvtxPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "parse_evtx", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &_ParseEvtxPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
@@ -63,7 +64,10 @@ func (self _ParseEvtxPlugin) Call(
 		} else {
 			// If the plugin did not specify a database, use the local
 			// resolver - On windows this will search DLLs for the messages.
-			resolver, err = evtx.GetNativeResolver()
+			resolver, err = evtx.GetNativeResolver(evtx.MessageResolverOpts{
+				LangPreferenceRegeExp: vql_subsystem.GetStringFromRow(
+					scope, scope, constants.EVTX_PREFERRED_LANG),
+			})
 		}
 
 		if err != nil {
@@ -127,7 +131,8 @@ func (self _ParseEvtxPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap
 		Name:     "parse_evtx",
 		Doc:      "Parses events from an EVTX file.",
 		ArgType:  type_map.AddType(scope, &_ParseEvtxPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 
@@ -170,12 +175,22 @@ func (self _WatchEvtxPlugin) Call(
 		}
 
 		// Wait until the query is complete.
-		for event := range event_channel {
+		for {
 			select {
 			case <-ctx.Done():
 				return
 
-			case output_chan <- event:
+			case event, ok := <-event_channel:
+				if !ok {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+
+				case output_chan <- event:
+				}
 			}
 		}
 	}()
@@ -188,7 +203,8 @@ func (self _WatchEvtxPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap
 		Name:     "watch_evtx",
 		Doc:      "Watch an EVTX file and stream events from it. ",
 		ArgType:  type_map.AddType(scope, &_ParseEvtxPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 

@@ -1,11 +1,12 @@
 package sanity
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
+	"github.com/Velocidex/ordereddict"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/crypto"
 	crypto_utils "www.velocidex.com/golang/velociraptor/crypto/utils"
@@ -45,7 +46,7 @@ func (self *SanityChecks) CheckCertificates(
 		logger.Error("%v", msg1)
 
 		if config_obj.CA != nil && config_obj.CA.PrivateKey != "" {
-			msg2 := fmt.Sprintf("<green>Found CA private key in config</>, I will automatically rotate keys, but you should consider updating the config file using `velociraptor config rotate_keys`")
+			msg2 := "<green>Found CA private key in config</>, I will automatically rotate keys, but you should consider updating the config file using `velociraptor config rotate_keys`"
 			logger.Info("%s", msg2)
 
 			frontend_cert, err := crypto.GenerateServerCert(
@@ -70,22 +71,22 @@ func (self *SanityChecks) CheckCertificates(
 			}
 
 			// Make sure the user knows about the issue!
-			frontend_service, err := services.GetFrontendManager(config_obj)
-			if err == nil {
-				frontend_service.SetGlobalMessage(
-					&api_proto.GlobalUserMessage{
-						Key:     "ExpiredCert",
-						Level:   "ERROR",
-						Message: msg1,
-					})
-				frontend_service.SetGlobalMessage(
-					&api_proto.GlobalUserMessage{
-						Key:     "ExpiredCert2",
-						Level:   "INFO",
-						Message: msg2,
-					})
+			_ = services.MessageAllUsers(context.Background(),
+				utils.GetSuperuserName(config_obj),
+				[]string{config_obj.OrgId},
+				ordereddict.NewDict().
+					Set("Error", "ExpiredCert").
+					Set("Message", msg1),
+			)
 
-			}
+			_ = services.MessageAllUsers(context.Background(),
+				utils.GetSuperuserName(config_obj),
+				[]string{config_obj.OrgId},
+				ordereddict.NewDict().
+					Set("Error", "ExpiredCert").
+					Set("Message", msg2),
+			)
+
 			return nil
 		}
 

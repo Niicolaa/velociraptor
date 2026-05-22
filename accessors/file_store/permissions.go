@@ -16,7 +16,7 @@ var (
 	allowedPrefixes *utils.PrefixTree
 	deniedPrefixes  *utils.PrefixTree
 
-	DeniedError = utils.Wrap(acls.PermissionDenied, "No accesss to file store path")
+	DeniedError = utils.Wrap(acls.PermissionDenied, "No access to file store path")
 )
 
 func SetPrefixes(allowed *utils.PrefixTree, denied *utils.PrefixTree) {

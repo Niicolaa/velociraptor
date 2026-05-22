@@ -39,7 +39,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/uploads"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/functions"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -57,7 +56,7 @@ type YaraXScanPluginArgs struct {
 	NumberOfHits    int64             `vfilter:"optional,field=number,doc=Stop after this many hits (1)."`
 	Blocksize       uint64            `vfilter:"optional,field=blocksize,doc=Blocksize for scanning (10mb)."`
 	Key             string            `vfilter:"optional,field=key,doc=If set use this key to cache the  yara rules."`
-	Namespace       string            `vfilter:"optional,field=namespace,doc=The Yara namespece to use."`
+	Namespace       string            `vfilter:"optional,field=namespace,doc=The Yara namespace to use."`
 	YaraVariables   *ordereddict.Dict `vfilter:"optional,field=vars,doc=The Yara variables to use."`
 	YaraXDLLPath    *vfilter.Lambda   `vfilter:"required,field=dll_path,doc=Function to resolve path to the yarax DLL"`
 	ForceBufferScan bool              `vfilter:"optional,field=force_buffers,doc=Force buffer scan in all cases."`
@@ -74,6 +73,7 @@ func (self YaraXScanPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "yarax", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &YaraXScanPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
@@ -86,7 +86,7 @@ func (self YaraXScanPlugin) Call(
 			yara_dll_path := utils.ToString(arg.YaraXDLLPath.Reduce(
 				ctx, scope, []vfilter.Any{scope}))
 
-			// Make sure the path is absolute as we dont want any dll
+			// Make sure the path is absolute as we don't want any dll
 			// hijacking possibility.
 			if !filepath.IsAbs(yara_dll_path) {
 				scope.Error("yarax: dll path must be an absolute path, not %v",
@@ -415,7 +415,7 @@ func (self *yaraXscanReporter) scanRange(
 	// base_offset reflects the file offset where we scan.
 	for self.base_offset = start; self.base_offset < end; {
 		// Try to seek to the start offset - if it does not work then
-		// dont worry about it - just start from the beginning. This
+		// don't worry about it - just start from the beginning. This
 		// is needed for scanning devices which may not advance their
 		// own file pointer when read so we force a seek on each read.
 		_, _ = f.Seek(int64(self.base_offset), 0)
@@ -427,7 +427,7 @@ func (self *yaraXscanReporter) scanRange(
 		}
 
 		n, err := f.Read(buf[:to_read])
-		if n == 0 {
+		if n == 0 || err != nil {
 			return
 		}
 
@@ -500,9 +500,8 @@ type yaraXscanReporter struct {
 	ctx            context.Context
 
 	// Internal scan state
-	scope            vfilter.Scope
-	rules            *yara_x.Rules
-	fast_buffer_scan bool
+	scope vfilter.Scope
+	rules *yara_x.Rules
 }
 
 func (self *yaraXscanReporter) getMeta(rule *yara_x.Rule) *ordereddict.Dict {
@@ -625,8 +624,9 @@ func (self YaraXScanPlugin) Info(
 		ArgType: type_map.AddType(scope, &YaraXScanPluginArgs{}),
 
 		// EXECVE is needed because we load the yarax DLL dynamically.
-		Metadata: vql.VQLMetadata().Permissions(
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
 			acls.FILESYSTEM_READ, acls.EXECVE).Build(),
+		Version: 2,
 	}
 }
 

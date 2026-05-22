@@ -5,7 +5,6 @@ package offset
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 
 	"www.velocidex.com/golang/velociraptor/accessors"
@@ -30,7 +29,7 @@ type OffsetReader struct {
 	// Current offset of the reader in delegate coordinates
 	offset int64
 
-	// Constant offset we add the the delegate reader.
+	// Constant offset we add to the delegate reader.
 	base_offset int64
 
 	// The OSPath object that is required to access this
@@ -43,7 +42,7 @@ func (self *OffsetReader) Close() error {
 }
 
 func (self *OffsetReader) Read(buff []byte) (int, error) {
-	new_pos, err := self.reader.Seek(self.offset, os.SEEK_SET)
+	new_pos, err := self.reader.Seek(self.offset, io.SeekStart)
 	if err != nil {
 		return int(new_pos), err
 	}
@@ -58,7 +57,7 @@ func (self *OffsetReader) Seek(offset int64, whence int) (int64, error) {
 	// Callers are operating in the offsetted coordinate system so the
 	// real offset should be the offset they asked for plus the base
 	// offset.
-	if whence == os.SEEK_SET {
+	if whence == io.SeekStart {
 		offset += self.base_offset
 	}
 

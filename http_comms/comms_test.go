@@ -518,7 +518,7 @@ func (self *CommsTestSuite) TestMultiFrontendsAllIsBorked() {
 	})
 }
 
-// With 2 FE configured if FE 1 fails intermittantly (perhaps due to
+// With 2 FE configured if FE 1 fails intermittently (perhaps due to
 // load), client should back off and try FE1 one more time before
 // switching to FE2
 func (self *CommsTestSuite) TestMultiFrontendsIntermittantFailure() {

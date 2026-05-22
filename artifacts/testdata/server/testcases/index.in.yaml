@@ -1,0 +1,29 @@
+Parameters:
+  Docs: |
+    {"Foo": "The quick brown fox"}
+    {"Foo": "Jumps over"}
+    {"Foo": "The lazy dog"}
+
+  Docs2: |
+    {"Foo": "Another fox"}
+
+Queries:
+  - LET IndexPath <= tempdir()
+
+  # Create the index.
+  - |
+    SELECT * FROM index(query={
+      SELECT * FROM parse_jsonl(accessor='data', filename=Docs)
+    }, output=IndexPath)
+    ORDER BY Foo
+
+  # Append to the index
+  - |
+    SELECT * FROM index(query={
+      SELECT * FROM parse_jsonl(accessor='data', filename=Docs2)
+    }, output=IndexPath)
+    ORDER BY Foo
+
+  # Query the index.
+  - SELECT * FROM index_search(path=IndexPath,
+      fields="Foo", search="fox dog") ORDER BY Foo

@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	noEmbeddedConfig = errors.New(
-		"No embedded config - you can pack one with the `config repack` command")
+	silentError = errors.New("Silent")
 
 	embedded_re = regexp.MustCompile(`#{3}<Begin Embedded Config>\r?\n`)
 
@@ -312,17 +311,23 @@ func (self *Loader) WithEmbedded(embedded_file string) *Loader {
 	self.loaders = append(self.loaders, loaderFunction{
 		name: "WithEmbedded",
 		loader_func: func(self *Loader) (*config_proto.Config, error) {
+			// Try to get the embedded config inside the binary.
 			if embedded_file == "" {
 				result, err := read_embedded_config()
 				if err != nil {
-					return nil, err
+					// not a critical error - the binary does not have
+					// to have an embedded config
+					return nil, silentError
 				}
 
-				self.Log("Loaded embedded config")
+				self.Log("Loaded embedded config from binary")
 
+				// Set the EmbeddedFile for the "me" accessor- we will
+				// get binaries from this file.
 				EmbeddedFile, err = os.Executable()
 				return result, err
 			}
+
 			// Ensure the "me" accessor uses this file for embedded zip.
 			full_path, err := filepath.Abs(embedded_file)
 			if err != nil {
@@ -334,9 +339,11 @@ func (self *Loader) WithEmbedded(embedded_file string) *Loader {
 			result, err := ExtractEmbeddedConfig(full_path)
 			if err == nil {
 				self.Log("Loaded embedded config from %v", full_path)
+				return result, nil
 			}
-			return result, err
 
+			self.Log("Unable to parse embedded config from %v: %v", full_path, err.Error())
+			return result, HardError{err}
 		}})
 	return self
 }
@@ -419,7 +426,7 @@ func (self *Loader) Validate(config_obj *config_proto.Config) error {
 			return err
 		}
 	} else {
-		// Logging is not required so if it fails we dont
+		// Logging is not required so if it fails we don't
 		// care.
 		_ = logging.InitLogging(config_obj)
 	}
@@ -492,11 +499,13 @@ func (self *Loader) LoadAndValidate() (*config_proto.Config, error) {
 		}
 
 		// Stop on hard errors.
-		_, ok := err.(HardError)
+		he, ok := err.(HardError)
 		if ok {
-			return nil, err
+			return nil, he.Err
 		}
-		self.Log("%v", err)
+		if err != silentError {
+			self.Log("%v", err)
+		}
 	}
 	return nil, errors.New("Unable to load config from any source.")
 }
@@ -532,7 +541,5 @@ func read_api_config_from_file(filename string) (*config_proto.Config, error) {
 }
 
 func debug(message string, args ...interface{}) {
-	return
-
 	// logging.Prelog(message, args...)
 }

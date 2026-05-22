@@ -18,6 +18,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/client_info"
 	"www.velocidex.com/golang/velociraptor/services/indexing"
+	"www.velocidex.com/golang/velociraptor/services/journal"
 	"www.velocidex.com/golang/velociraptor/vtesting"
 	"www.velocidex.com/golang/velociraptor/vtesting/assert"
 
@@ -36,6 +37,8 @@ func (self *ClientInfoTestSuite) SetupTest() {
 	self.ConfigObj.Frontend.Resources.ClientInfoWriteTime = 1
 	self.ConfigObj.Defaults.IndexedClientMetadata = []string{"dept"}
 
+	journal.PushRowsToArtifactAsyncIsSynchrnous = true
+
 	self.LoadArtifactsIntoConfig([]string{`
 name: Server.Internal.ClientPing
 type: INTERNAL
@@ -44,7 +47,7 @@ name: Server.Internal.ClientInfoSnapshot
 type: INTERNAL
 `, `
 name: Server.Internal.MetadataModifications
-type: INTERNAL
+type: SERVER_EVENT
 `, `
 name: Server.Audit.Logs
 type: INTERNAL
@@ -97,7 +100,7 @@ func (self *ClientInfoTestSuite) TestClientInfoModify() {
 	assert.NoError(self.T(), err)
 	assert.Equal(self.T(), info.Ping, uint64(10))
 
-	// Now modify a nonexistant client - equivalent to a Set() call
+	// Now modify a nonexistent client - equivalent to a Set() call
 	// (atomic check and set).
 	err = client_info_manager.Modify(self.Ctx, "C.DOESNOTEXIT",
 		func(client_info *services.ClientInfo) (*services.ClientInfo, error) {

@@ -131,12 +131,11 @@ func (self *AccessorReader) Stats() *ordereddict.Dict {
 		Set("Lifetime", self.Lifetime.Round(time.Second).String()).
 		Set("LastOpened", last_opened).
 		Set("PageCache", paged_stats)
-
 }
 
 func (self *AccessorReader) DebugString() string {
-	return fmt.Sprintf("AccessorReader %v: %v\n",
-		self.Accessor, self.File.String())
+	return fmt.Sprintf("AccessorReader %v: %v\n%v\n",
+		self.Accessor, self.File.String(), self.Stats())
 }
 
 func (self *AccessorReader) SetLifetime(l time.Duration) {
@@ -169,6 +168,7 @@ func (self *AccessorReader) Flush() {
 	self.Close()
 }
 
+// Close all references to the underlying reader.
 func (self *AccessorReader) Close() error {
 	self.mu.Lock()
 
@@ -227,7 +227,7 @@ func (self *AccessorReader) ReadAt(buf []byte, offset int64) (int, error) {
 		}
 
 		// Set an alarm to close the file in the future - this
-		// ensures we dont hold open handles for long running
+		// ensures we don't hold open handles for long running
 		// queries. Since the paged reader expects the file
 		// handles to be closed at any time this is fine - we
 		// will just open it again if needed.

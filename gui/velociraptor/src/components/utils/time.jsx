@@ -56,7 +56,7 @@ export const ToStandardTime = value => {
         }
     }
 
-    // If the timestamp is anumber then it might be in sec, msec,
+    // If the timestamp is a number then it might be in sec, msec,
     // usec or nsec - we want to support all of those.
     if (!_.isNaN(value) &&  _.isNumber(value) && value > 0) {
         // Maybe nsec

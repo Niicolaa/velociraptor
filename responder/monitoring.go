@@ -195,7 +195,7 @@ func (self *MonitoringContext) NextUploadId() int64 {
 func (self *MonitoringContext) sendAlertMessage(
 	ctx context.Context, level string,
 
-	// msg containes serialized services.AlertMessage
+	// msg contains serialized services.AlertMessage
 	msg string) {
 
 	self.mu.Lock()
@@ -210,7 +210,7 @@ func (self *MonitoringContext) sendAlertMessage(
 			Id:           int64(id),
 			NumberOfRows: 1,
 			Jsonl: json.Format(
-				"{\"client_time\":%d,\"level\":%q,\"message\":%q}\n",
+				`{"client_time":%d,"level":%q,"message":%q}`+"\n",
 				int(utils.GetTime().Now().Unix()), level, msg),
 			Level:    logging.ALERT,
 			Artifact: self.artifact,
@@ -227,7 +227,7 @@ func (self *MonitoringContext) AddLogMessage(
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	message := json.Format("{\"client_time\":%d,\"level\":%q,\"message\":%q}\n",
+	message := json.Format(`{"client_time":%d,"level":%q,"message":%q}`+"\n",
 		int(utils.GetTime().Now().Unix()), level, msg)
 	self.log_message_count++
 	self.log_messages = append(self.log_messages, message...)
@@ -339,7 +339,7 @@ func (self *MonitoringResponder) AddResponse(message *crypto_proto.VeloMessage) 
 	}
 }
 
-// Monitoring queries dont have a status - the logs will be of type error.
+// Monitoring queries don't have a status - the logs will be of type error.
 func (self *MonitoringResponder) RaiseError(ctx context.Context, message string) {
 	logger := logging.GetLogger(self.config_obj, &logging.ClientComponent)
 	logger.Error("MonitoringResponder: %v", message)

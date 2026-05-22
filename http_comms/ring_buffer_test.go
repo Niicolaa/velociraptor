@@ -87,7 +87,7 @@ func TestRingBuffer(t *testing.T) {
 	st, err := os.Stat(filename)
 	assert.NoError(t, err)
 
-	// Check that there is a single enqued buffer.
+	// Check that there is a single enqueued buffer.
 	assert.Equal(t,
 		FirstRecordOffset+
 			8+ // Length of item
@@ -317,7 +317,7 @@ func TestRingBufferCancellation(t *testing.T) {
 	message_list := &crypto_proto.MessageList{
 		// Add some messages. We filter out large messages for
 		// cancelled flows to preserve bandwidth to the server, but
-		// FlowStats messgaes should still be allowed.
+		// FlowStats messages should still be allowed.
 		Job: []*crypto_proto.VeloMessage{
 			{
 				SessionId: "F.1234" + filename,

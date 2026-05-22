@@ -209,7 +209,7 @@ func (self *CSVWatcherService) monitorOnce(
 			}
 		}
 
-		// No more listeners - we dont care any more.
+		// No more listeners - we don't care any more.
 		if len(new_handles) == 0 {
 			delete(self.registrations, key)
 			return last_event, true

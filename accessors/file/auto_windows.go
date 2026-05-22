@@ -96,7 +96,7 @@ func (self *FileReaderWrapper) Read(buf []byte) (int, error) {
 			return n, err
 		}
 
-		// Close the old reader and substitude a new one
+		// Close the old reader and substitute a new one
 		self.switched_to_ntfs = true
 		current_offset, _ := self.ReadSeekCloser.Seek(0, os.SEEK_CUR)
 		self.ReadSeekCloser.Close()
@@ -226,7 +226,7 @@ func shouldTryNTFS(path string, err error) bool {
 	}
 
 	// If the file does not exist using the APIs then it is unlikely
-	// that nts parsing will find it.
+	// that ntfs parsing will find it.
 	if errors.Is(err, os.ErrNotExist) {
 		return false
 	}

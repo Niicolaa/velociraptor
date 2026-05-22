@@ -34,6 +34,8 @@ import (
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
@@ -53,7 +55,7 @@ type Repository struct {
 }
 
 // A Parent repository is another repository we can delegate to if we
-// dont have the artifact definition we require.
+// don't have the artifact definition we require.
 func (self *Repository) SetParent(
 	parent services.Repository, parent_config_obj *config_proto.Config) {
 	self.mu.Lock()
@@ -158,6 +160,7 @@ func (self *Repository) LoadProto(
 	}
 
 	// Validate the artifact.
+	// TODO: Reports are deprecated, we should remove them.
 	for _, report := range artifact.Reports {
 		report.Type = strings.ToLower(report.Type)
 		switch report.Type {
@@ -182,18 +185,19 @@ func (self *Repository) LoadProto(
 	}
 
 	// Normalize the type.
-	artifact.Type = strings.ToLower(artifact.Type)
-	switch artifact.Type {
-	case "":
-		// By default use the client type.
-		artifact.Type = "client"
+	artifact_mode := artifact_modes.ModeNameToMode(artifact.Type)
+	if artifact_mode == artifact_modes.MODE_INVALID {
+		return nil, fmt.Errorf("Artifact type %v invalid.", artifact.Type)
+	}
 
-	case "client", "client_event", "server",
-		"server_event", "notebook", "internal":
-		// These types are acceptable.
+	artifact.Type = strings.ToLower(artifact_mode.String())
 
-	default:
-		return nil, errors.New("Artifact type invalid.")
+	// Ensure the artifact does not mask a well known queue
+	wk, pres := artifacts.WELL_KNOWN_QUEUES_MAP[artifact.Name]
+	if pres && wk.ArtifactType != artifact_mode {
+		return nil, fmt.Errorf(
+			"Artifact type invalid: Well Known Artifact %v sholuld be of type %v.",
+			artifact.Name, wk.ArtifactType)
 	}
 
 	// Normalize the artifact by converting the deprecated Queries
@@ -221,7 +225,7 @@ func (self *Repository) LoadProto(
 			}
 		}
 
-		// Ensure precodition has correct syntax - it should be a VQL
+		// Ensure precondition has correct syntax - it should be a VQL
 		// query.
 		if artifact.Precondition != "" {
 			_, err := vfilter.MultiParse(artifact.Precondition)
@@ -460,6 +464,16 @@ func (self *Repository) Del(name string) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
+	res, pres := self.Data[name]
+	if !pres {
+		return
+	}
+
+	// Do not allow built in artifacts to be deleted.
+	if res.BuiltIn {
+		return
+	}
+
 	delete(self.Data, name)
 
 	if self.metadata != nil {
@@ -603,7 +617,7 @@ var (
 func validateArtifactName(name string) error {
 	if !artifactNameRegex.MatchString(name) {
 		return errors.New(
-			"Invalid artifact name. Can only contain characted in this set 'a-zA-Z0-9_.'")
+			"Invalid artifact name. Can only contain characters in this set 'a-zA-Z0-9_.'")
 	}
 
 	for _, part := range strings.Split(name, ".") {

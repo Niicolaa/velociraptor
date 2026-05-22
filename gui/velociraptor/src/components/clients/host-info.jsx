@@ -192,7 +192,7 @@ class VeloHostInfo extends Component {
     }
 
     state = {
-        // Current inflight interrogate.
+        // Current in-flight interrogate.
         interrogateOperationId: null,
 
         // The mode of the host info tab set.
@@ -409,9 +409,13 @@ class VeloHostInfo extends Component {
         }
 
         if (this.state.mode === 'shell') {
+            let system = this.props.client && this.props.client.os_info &&
+                this.props.client.os_info.system;
             return (
                 <div className="client-details shell">
-                  <ShellViewer client={this.props.client} />
+                  <ShellViewer
+                    system={system}
+                    client_id={this.props.client.client_id} />
                 </div>
             );
         }

@@ -10,6 +10,7 @@ import classNames from "classnames";
 import { NavLink } from "react-router-dom";
 import T from '../i8n/i8n.jsx';
 import ToolTip from '../widgets/tooltip.jsx';
+import {getItem, schema} from '../core/storage.jsx';
 
 import { EncodePathInURL } from '../utils/paths.jsx';
 
@@ -44,16 +45,86 @@ class VeloNavigator extends Component {
         this.setState(new_state);
     };
 
+    getHuntLink = ()=>{
+        let hunt_id = getItem(schema.CurrentHuntIdKey);
+        let hunt_tab = getItem(schema.CurrentHuntTabKey);
+        if(hunt_tab && hunt_id) {
+            return "/hunts/" + hunt_id + "/" + hunt_tab;
+        }
+
+        if(hunt_id) {
+            return "/hunts/" + hunt_id;
+        }
+        return "/hunts";
+    };
+
+    getArtifactLink = ()=>{
+        let artifact = getItem(schema.CurrentSelectedArtifactKey);
+        if(artifact) {
+            return "/artifacts/" + artifact;
+        }
+        return "/artifacts";
+    }
+
+    getServerEventLink = ()=>{
+        let artifact = getItem(schema.CurrentServerEventArtifactKey);
+        if(artifact) {
+            return "/events/server/" + artifact;
+        };
+        return "/events/server";
+    }
+
+    getServerCollectedLink = ()=>{
+        let flow_id = getItem(schema.ServerCurrentFlowKey);
+        if(flow_id) {
+            return "/collected/server/" + flow_id;
+        }
+        return "/collected/server";
+    }
+
+    getNotebookLink = ()=>{
+        let noteboook_id = getItem(schema.CurrentNotebookIdKey);
+        if(noteboook_id) {
+            return "/notebooks/" + noteboook_id;
+        };
+        return "/notebooks";
+    }
+
+    getClientFlowLink = ()=>{
+        let client_id = getItem(schema.CurrentSelectedClientKey);
+        let flow_id = getItem(schema.ClientsCurrentFlowKey);
+        let tab = getItem(schema.ClientFlowsTabKey);
+
+        if(flow_id && tab) {
+            return "/collected/" + client_id + "/" + flow_id + "/" + tab;
+        }
+
+        if(flow_id) {
+            return "/collected/" + client_id + "/" + flow_id;
+        }
+        return "/collected/" + client_id;
+    }
+
+    getClientEventLink = ()=>{
+        let client_id = getItem(schema.CurrentSelectedClientKey);
+        let artifact = getItem(schema.CurrentClientEventArtifactKey);
+        if(artifact) {
+            return "/events/" + client_id + "/" + artifact;
+        };
+        return "/events/" + client_id;
+    }
+
+    getVFSLink = ()=>{
+        let client_id = getItem(schema.CurrentSelectedClientKey);
+        let vfs_path = getItem(schema.CurrentVFSPathKey) || "/";
+        return "/vfs/"+client_id+EncodePathInURL(vfs_path);
+    }
+
     render() {
         let disabled = null;
         if (!this.props.client || !this.props.client.client_id) {
             disabled = "disabled";
         };
-
-        let vfs_path = "";
-        if (this.props.vfs_path.length) {
-            vfs_path = this.props.vfs_path;
-        }
 
         // Only show the user management screen if the user is an
         // admin in this org.
@@ -113,7 +184,7 @@ class VeloNavigator extends Component {
                       </li>
 
                       <li className="nav-link">
-                        <NavLink to="/hunts">
+                        <NavLink to={this.getHuntLink()}>
                           <span>
                             <i className="navicon">
                               <FontAwesomeIcon icon="crosshairs" />
@@ -124,7 +195,7 @@ class VeloNavigator extends Component {
                       </li>
 
                       <li className="nav-link">
-                        <NavLink to="/artifacts">
+                        <NavLink to={this.getArtifactLink()}>
                           <span>
                             <i className="navicon">
                               <FontAwesomeIcon icon="wrench" />
@@ -136,7 +207,7 @@ class VeloNavigator extends Component {
 
                       {!customization.disable_server_events && (
                         <li className="nav-link">
-                          <NavLink to="/events/server">
+                          <NavLink to={this.getServerEventLink()}>
                             <span>
                               <i className="navicon">
                                 <FontAwesomeIcon icon="eye" />
@@ -148,7 +219,7 @@ class VeloNavigator extends Component {
                       )}
 
                       <li className="nav-link">
-                        <NavLink to="/collected/server">
+                        <NavLink to={this.getServerCollectedLink()}>
                           <span>
                             <i className="navicon">
                               <FontAwesomeIcon icon="server" />
@@ -159,7 +230,7 @@ class VeloNavigator extends Component {
                       </li>
 
                       <li className="nav-link">
-                        <NavLink to="/notebooks">
+                        <NavLink to={this.getNotebookLink()}>
                           <span>
                             <i className="navicon">
                               <FontAwesomeIcon icon="book" />
@@ -215,11 +286,7 @@ class VeloNavigator extends Component {
                           disabled={disabled}
                           aria-hidden={disabled !== null ? "true" : "false"}
                           tabIndex={disabled !== null ? "-1" : "0"}
-                          to={
-                            "/vfs/" +
-                            this.props.client.client_id +
-                            EncodePathInURL(vfs_path)
-                          }
+                          to={this.getVFSLink()}
                         >
                           <span>
                             <i className="navicon">
@@ -241,7 +308,7 @@ class VeloNavigator extends Component {
                           disabled={disabled}
                           aria-hidden={disabled !== null ? "true" : "false"}
                           tabIndex={disabled !== null ? "-1" : "0"}
-                          to={"/collected/" + this.props.client.client_id}
+                          to={this.getClientFlowLink()}
                         >
                           <span>
                             <i className="navicon">
@@ -263,7 +330,7 @@ class VeloNavigator extends Component {
                           disabled={disabled}
                           aria-hidden={disabled !== null ? "true" : "false"}
                           tabIndex={disabled !== null ? "-1" : "0"}
-                          to={"/events/" + this.props.client.client_id}
+                          to={this.getClientEventLink()}
                         >
                           <span>
                             <i className="navicon">

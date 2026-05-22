@@ -92,7 +92,7 @@ func (self MemcacheFileTestSuite) TestSetOnFileSystem() {
 		return client_record.ClientId == client_id
 	})
 
-	// Now write a file to the filsystem and read it from memcache.
+	// Now write a file to the filesystem and read it from memcache.
 	flow_id := "F.123"
 	flow_path_manager := paths.NewFlowPathManager(client_id, flow_id)
 	md := &flows_proto.ArtifactCollectorContext{

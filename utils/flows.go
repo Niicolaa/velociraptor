@@ -66,7 +66,7 @@ func SetFlowIdForTests(id string) func() {
 // in order to get reproducible IDs for various things. It is
 // important to ensure the ID generator is only reset once by a single
 // calling thread. Otherwise this introduces test flakeyness. We
-// ensure this happens by hard panicing if it is called multiple
+// ensure this happens by hard panicking if it is called multiple
 // times. Tests should be refactored to only call this once from the
 // main thread, and call the closer function when done.
 func SetIdGenerator(gen IdGenerator) func() {
@@ -85,4 +85,16 @@ func SetIdGenerator(gen IdGenerator) func() {
 		generator_set = ""
 		generator_mu.Unlock()
 	}
+}
+
+// For resumaing flows, the client will receive a sesion_id which
+// consists of two parts: The parent flow will receive the collection
+// data and the child flow id is a unique flow that will run on the
+// client.
+func SplitSessionIdToParentAndChild(sesion_id string) (string, string) {
+	parts := strings.SplitN(sesion_id, "/", 2)
+	if len(parts) < 2 {
+		return parts[0], ""
+	}
+	return parts[0], parts[1]
 }

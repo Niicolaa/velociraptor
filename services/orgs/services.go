@@ -390,12 +390,6 @@ func (self *OrgManager) startRootOrgServices(
 		return err
 	}
 
-	err = datastore.StartDatastore(
-		ctx, wg, org_config)
-	if err != nil {
-		return err
-	}
-
 	if spec.SchedulerService {
 		err := scheduler.StartSchedulerService(ctx, wg, org_config)
 		if err != nil {
@@ -495,7 +489,7 @@ func (self *OrgManager) startOrgFromContext(org_ctx *OrgContext) (err error) {
 			return err
 		}
 
-		err = repository.LoadArtifactsFromConfig(repo_manager, org_config)
+		err = repository.LoadArtifactsFromConfig(ctx, repo_manager, org_config)
 		if err != nil {
 			return err
 		}
@@ -586,7 +580,7 @@ func (self *OrgManager) startOrgFromContext(org_ctx *OrgContext) (err error) {
 
 		// Load config artifacts last so they can override all the
 		// other artifacts.
-		err = repository.LoadArtifactsFromConfig(repo_manager, org_config)
+		err = repository.LoadArtifactsFromConfig(ctx, repo_manager, org_config)
 		if err != nil {
 			return err
 		}

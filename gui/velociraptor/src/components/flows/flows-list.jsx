@@ -243,9 +243,6 @@ class FlowsList extends React.Component {
         this.source = CancelToken.source();
         this.interval = setInterval(this.incrementVersion, POLL_TIME);
 
-        let slider = SLIDE_STATES[this.state.slider];
-        this.props.collapseToggle(slider.level);
-
         let action = this.props.match && this.props.match.params &&
             this.props.match.params.flow_id;
 
@@ -265,9 +262,6 @@ class FlowsList extends React.Component {
                 this.setState({showOfflineWizard: true});
                 return;
             }
-
-            let specs = {};
-            specs[name] = {};
 
             let initial_flow = {
                 request: {
@@ -293,14 +287,15 @@ class FlowsList extends React.Component {
 
     // Set the table in focus when the component mounts for the first time.
     componentDidUpdate = (prevProps, prevState, rootNode) => {
-        let selected_flow = this.props.selected_flow && this.props.selected_flow.session_id;
-        if (!this.state.initialized_from_parent && selected_flow) {
-            const el = document.getElementById(selected_flow);
-            if (el) {
-                this.setState({initialized_from_parent: true});
-                el.focus();
-            }
+        let selected_flow = this.props.selected_flow &&
+            this.props.selected_flow.session_id;
+        let prev_selection = prevProps.selected_flow &&
+            prevProps.selected_flow.session_id;
+
+        if(selected_flow != prev_selection) {
+            return true;
         }
+        return false;
     }
 
     setCollectionRequest = (request) => {
@@ -378,7 +373,8 @@ class FlowsList extends React.Component {
         let tab = this.props.match && this.props.match.params &&
             this.props.match.params.tab;
         let client_id = this.props.client && this.props.client.client_id;
-        let selected_flow = this.props.selected_flow && this.props.selected_flow.session_id;
+        let selected_flow = this.props.selected_flow &&
+            this.props.selected_flow.session_id;
         let username = this.context &&
             this.context.traits && this.context.traits.username;
         let router_flow_id = this.props.match && this.props.match.params &&
@@ -404,7 +400,9 @@ class FlowsList extends React.Component {
                 });
                 this.setState({multiSelectedFlows: flows});
             },
-            selected: [this.state.selectedFlowId],
+            isSelectedCB: (row, idx)=>{
+                return row.FlowId === selected_flow;
+            },
         };
 
         // When running on the server we have some special GUI.
@@ -734,7 +732,7 @@ const stateRenderer = (cell, row) => {
         result = <FontAwesomeIcon icon="hourglass"/>;
 
     } else if (cell === "IN_PROGRESS") {
-        // An error occured but the flow is still running.
+        // An error occurred but the flow is still running.
         if(row && row._Flow && row._Flow.status) {
             result = <>
                        <FontAwesomeIcon icon="person-running"/>&nbsp;

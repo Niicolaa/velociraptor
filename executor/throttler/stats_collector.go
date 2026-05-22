@@ -218,7 +218,7 @@ func (self *statsCollector) updateStats(ctx context.Context) {
 		total_cpu_time = self.cpu_reporter.GetCpuTime(ctx)
 	}
 
-	// If no one is interested in iops we dont measure it.
+	// If no one is interested in iops we don't measure it.
 	if self.opts.IOPsLimit {
 		iops = self.iops_reporter.GetIops(ctx)
 	}

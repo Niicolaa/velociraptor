@@ -14,12 +14,12 @@ import (
 	constants "www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/crypto"
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
-	"www.velocidex.com/golang/velociraptor/datastore"
 	"www.velocidex.com/golang/velociraptor/file_store"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	artifact_paths "www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/result_sets"
 	"www.velocidex.com/golang/velociraptor/services"
@@ -28,15 +28,13 @@ import (
 )
 
 /*
-  This flow runner processes messages from newer clients which support
-  CLIENT_API_VERSION >= 4.
+This flow runner processes messages from newer clients which support
+CLIENT_API_VERSION >= 4.
 
-  These clients maintain the state of the flow on the client
-  itself. This means the server does not need to maintain a lot of
-  information about each flow making it much faster.
-
+These clients maintain the state of the flow on the client
+itself. This means the server does not need to maintain a lot of
+information about each flow making it much faster.
 */
-
 type ClientFlowRunner struct {
 	ctx        context.Context
 	config_obj *config_proto.Config
@@ -44,7 +42,7 @@ type ClientFlowRunner struct {
 	// The completer keeps track of all asynchronous filesystem
 	// operations that will occur so that when everything is written
 	// to disk, the completer can send the System.Flow.Completion
-	// event. This is important as we dont want watchers of
+	// event. This is important as we don't want watchers of
 	// System.Flow.Completion to attempt to open the collection before
 	// everything is written.
 	completer *utils.Completer
@@ -81,8 +79,11 @@ func (self *ClientFlowRunner) Complete() {
 		}
 
 		for _, row := range self.flow_completion_messages {
+			client_id, _ := row.GetString("ClientId")
 			journal.PushRowsToArtifactAsync(self.ctx,
-				self.config_obj, row, "System.Flow.Completion")
+				self.config_obj, row,
+				artifact_paths.FLOW_COMPLETION.
+					WithClientId(client_id))
 		}
 	}
 
@@ -93,8 +94,11 @@ func (self *ClientFlowRunner) Complete() {
 		}
 
 		for _, row := range self.upload_completion_messages {
-			journal.PushRowsToArtifactAsync(self.ctx, self.config_obj,
-				row, "System.Upload.Completion")
+			client_id, _ := row.GetString("ClientId")
+			journal.PushRowsToArtifactAsync(self.ctx,
+				self.config_obj, row,
+				artifact_paths.UPLOAD_COMPLETION.
+					WithClientId(client_id))
 		}
 	}
 }
@@ -106,15 +110,18 @@ func (self *ClientFlowRunner) ProcessMonitoringMessage(
 	client_id := msg.Source
 
 	if msg.VQLResponse != nil && msg.VQLResponse.Query != nil {
-		err := self.MonitoringVQLResponse(ctx, client_id, flow_id, msg.VQLResponse)
+		err := self.MonitoringVQLResponse(
+			ctx, client_id, flow_id, msg.VQLResponse)
 		if err != nil {
 			return fmt.Errorf("MonitoringVQLResponse: %w", err)
 		}
-		return self.maybeProcessClientInfo(ctx, client_id, msg.VQLResponse)
+		return self.maybeProcessClientInfo(
+			ctx, client_id, msg.VQLResponse)
 	}
 
 	if msg.LogMessage != nil {
-		err := self.MonitoringLogMessage(ctx, client_id, flow_id, msg.LogMessage)
+		err := self.MonitoringLogMessage(ctx,
+			client_id, flow_id, msg.LogMessage)
 		if err != nil {
 			return fmt.Errorf("MonitoringLogMessage: %w", err)
 		}
@@ -166,7 +173,6 @@ func (self *ClientFlowRunner) MonitoringLogMessage(
 	payload := artifacts.DeobfuscateString(self.config_obj, response.Jsonl)
 
 	rs_writer.WriteJSONL([]byte(payload), int(response.NumberOfRows))
-
 	if response.Level == logging.ALERT {
 		return self.processMonitoringAlert(ctx, client_id, artifact_name, response)
 	}
@@ -205,7 +211,7 @@ func (self *ClientFlowRunner) processMonitoringAlert(
 		return err
 	}
 	return journal.PushJsonlToArtifact(ctx, self.config_obj,
-		serialized, 1, "Server.Internal.Alerts", "server", "")
+		serialized, 1, artifact_paths.ALERT_QUEUE)
 }
 
 func (self *ClientFlowRunner) MonitoringVQLResponse(
@@ -241,7 +247,12 @@ func (self *ClientFlowRunner) MonitoringVQLResponse(
 
 	return journal.PushJsonlToArtifact(ctx,
 		self.config_obj, data, int(response.TotalRows),
-		query_name, client_id, flow_id)
+		services.JournalOptions{
+			ArtifactName: query_name,
+			ClientId:     client_id,
+			FlowId:       flow_id,
+			Username:     client_id,
+		})
 }
 
 func (self *ClientFlowRunner) removeInflightChecks(
@@ -255,7 +266,7 @@ func (self *ClientFlowRunner) removeInflightChecks(
 		ordereddict.NewDict().
 			Set("ClientId", client_id).
 			Set("ClearFlows", true),
-		"Server.Internal.ClientScheduled")
+		artifact_paths.CLIENT_INFO_SCHEDULED)
 
 	// Update the client's in flight flow tracker on the local system
 	// as well. This helps to update this record ASAP before waiting
@@ -280,16 +291,16 @@ func (self *ClientFlowRunner) removeInflightChecks(
 func (self *ClientFlowRunner) ProcessSingleMessage(
 	ctx context.Context, msg *crypto_proto.VeloMessage) error {
 
-	flow_id := msg.SessionId
+	flow_id, child_flow_id := utils.SplitSessionIdToParentAndChild(msg.SessionId)
 	client_id := msg.Source
 
 	if flow_id == constants.MONITORING_WELL_KNOWN_FLOW {
 		return self.ProcessMonitoringMessage(ctx, msg)
 	}
 
-	// This response can only happen when an error occured to the flow
+	// This response can only happen when an error occurred to the flow
 	// status request. This means this old client does not support the
-	// new check. We remove all inflight checks.
+	// new check. We remove all in-flight checks.
 	if flow_id == constants.STATUS_CHECK_WELL_KNOWN_FLOW {
 		return self.removeInflightChecks(ctx, client_id)
 	}
@@ -301,7 +312,8 @@ func (self *ClientFlowRunner) ProcessSingleMessage(
 	}
 
 	if msg.LogMessage != nil {
-		err := self.LogMessage(ctx, client_id, flow_id, msg.LogMessage)
+		err := self.LogMessage(
+			ctx, client_id, flow_id, child_flow_id, msg.LogMessage)
 		if err != nil {
 			return fmt.Errorf("LogMessage: %w", err)
 		}
@@ -309,7 +321,8 @@ func (self *ClientFlowRunner) ProcessSingleMessage(
 	}
 
 	if msg.VQLResponse != nil {
-		err := self.VQLResponse(ctx, client_id, flow_id, msg.VQLResponse)
+		err := self.VQLResponse(
+			ctx, client_id, flow_id, child_flow_id, msg.VQLResponse)
 		if err != nil {
 			return fmt.Errorf("VQLResponse: %w", err)
 		}
@@ -414,7 +427,7 @@ func (self *ClientFlowRunner) FileBuffer(
 				Set("Size", file_buffer.Size).
 				Set("UploadedSize", file_buffer.StoredSize))
 
-		// Write the upload to the uplod metadata
+		// Write the upload to the upload metadata
 		rs_writer, err := result_sets.NewResultSetWriter(
 			file_store_factory, flow_path_manager.UploadMetadata(),
 			json.DefaultEncOpts(),
@@ -522,7 +535,7 @@ func (self *ClientFlowRunner) handleUnknwonFlow(
 		return err
 	}
 
-	// If we dont know anything about the flow, ignore it.
+	// If we don't know anything about the flow, ignore it.
 	collection_context, err := launcher_service.Storage().LoadCollectionContext(
 		ctx, self.config_obj, client_id, flow_id)
 	if err != nil {
@@ -587,16 +600,13 @@ func (self *ClientFlowRunner) FlowStats(
 	// Recompose the flow context from the QueryStats
 	launcher.UpdateFlowStats(stats)
 
-	// Store the updated flow object in the datastore
-	flow_path_manager := paths.NewFlowPathManager(client_id, flow_id)
-	db, err := datastore.GetDB(self.config_obj)
+	launcher_service, err := services.GetLauncher(self.config_obj)
 	if err != nil {
-		return err
+		return nil
 	}
 
-	// Just a blind write will eventually hit the disk.
-	err = db.SetSubjectWithCompletion(self.config_obj,
-		flow_path_manager.Stats(), stats, nil)
+	err = launcher_service.Storage().WriteFlowStats(ctx, self.config_obj,
+		stats, utils.BackgroundWriter)
 	if err != nil {
 		return err
 	}
@@ -611,7 +621,7 @@ func (self *ClientFlowRunner) FlowStats(
 	// completion.
 	if msg.FlowComplete {
 		// Immediately remove this flow from the local InFlightFlows
-		// so we dont schedule it again.
+		// so we don't schedule it again.
 		err := client_info_manager.Modify(ctx, client_id,
 			func(client_info *services.ClientInfo) (*services.ClientInfo, error) {
 				if client_info == nil {
@@ -689,10 +699,11 @@ func (self *ClientFlowRunner) FlowStats(
 }
 
 func (self *ClientFlowRunner) VQLResponse(
-	ctx context.Context, client_id, flow_id string,
+	ctx context.Context, client_id, flow_id, child_flow_id string,
 	response *actions_proto.VQLResponse) error {
 
-	if response == nil || response.Query == nil || response.Query.Name == "" {
+	if response == nil || response.Query == nil ||
+		response.Query.Name == "" {
 		return nil
 	}
 
@@ -710,6 +721,11 @@ func (self *ClientFlowRunner) VQLResponse(
 		self.config_obj, client_id, flow_id, response.Query.Name)
 	if err != nil {
 		return err
+	}
+
+	if path_manager.Mode() != artifact_modes.MODE_CLIENT {
+		return fmt.Errorf("Invalid VQLResponse: Artifact %v must be CLIENT type",
+			response.Query.Name)
 	}
 
 	file_store_factory := file_store.GetFileStore(self.config_obj)
@@ -732,7 +748,7 @@ func (self *ClientFlowRunner) VQLResponse(
 		// = 0 but Part > 0 - which means we must ignore QueryStartRow
 		// and NOT set the start row.
 
-	} else {
+	} else if child_flow_id == "" {
 		// Modern clients set the start row properly. We can check it
 		// against the result set index to ensure these rows are
 		// appended at the correct index in the result set.
@@ -742,20 +758,33 @@ func (self *ClientFlowRunner) VQLResponse(
 			// retransmitted - Just drop it on the floor.
 			return err
 		}
+
+	} else {
+		// This flow is a child flow of an existing flow. This allows
+		// it to append results so we turn off restransmission
+		// protections.
+		err := rs_writer.SetStartRow(rs_writer.TotalRows())
+		if err != nil {
+			// Something is wrong - the packet may have been
+			// retransmitted - Just drop it on the floor.
+			return err
+		}
+
+		response.ByteOffset = uint64(rs_writer.TotalBytes())
 	}
 
 	if response.UncompressedSize > 0 {
-		rs_writer.WriteCompressedJSONL(
+		err = rs_writer.WriteCompressedJSONL(
 			response.CompressedJsonResponse,
 			response.ByteOffset, int(response.UncompressedSize),
 			response.TotalRows)
 
 	} else {
-		rs_writer.WriteJSONL(
+		err = rs_writer.WriteJSONL(
 			[]byte(response.JSONLResponse), response.TotalRows)
 	}
 
-	return nil
+	return err
 }
 
 type log_message struct {
@@ -792,11 +821,11 @@ func (self *ClientFlowRunner) processAlert(
 		return err
 	}
 	return journal.PushJsonlToArtifact(ctx, self.config_obj,
-		serialized, 1, "Server.Internal.Alerts", "server", "")
+		serialized, 1, artifact_paths.ALERT_QUEUE)
 }
 
 func (self *ClientFlowRunner) LogMessage(
-	ctx context.Context, client_id, flow_id string,
+	ctx context.Context, client_id, flow_id, child_flow_id string,
 	msg *crypto_proto.LogMessage) error {
 
 	flow_path_manager := paths.NewFlowPathManager(client_id, flow_id).Log()
@@ -812,18 +841,25 @@ func (self *ClientFlowRunner) LogMessage(
 	}
 	defer rs_writer.Close()
 
-	_ = rs_writer.SetStartRow(int64(msg.Id))
+	// If this is a child flow, append to the result set's end
+	// otherwise, write at the specified offset.
+	if child_flow_id == "" {
+		_ = rs_writer.SetStartRow(int64(msg.Id))
+
+	} else {
+		_ = rs_writer.SetStartRow(rs_writer.TotalRows())
+	}
 
 	// The JSON payload from the client.
 	payload := artifacts.DeobfuscateString(self.config_obj, msg.Jsonl)
 
-	rs_writer.WriteJSONL([]byte(payload), uint64(msg.NumberOfRows))
+	err = rs_writer.WriteJSONL([]byte(payload), uint64(msg.NumberOfRows))
 
 	if msg.Level == logging.ALERT {
-		return self.processAlert(ctx, client_id, flow_id, msg)
+		err = self.processAlert(ctx, client_id, flow_id, msg)
 	}
 
-	return nil
+	return err
 }
 
 func (self *ClientFlowRunner) ProcessMessages(ctx context.Context,

@@ -135,7 +135,7 @@ func (self *_HttpPlugin) maybeForceSecrets(
 	ctx context.Context, scope vfilter.Scope,
 	arg *HttpPluginRequest) {
 
-	// Not running on the server, secrets dont work.
+	// Not running on the server, secrets don't work.
 	config_obj, ok := vql_subsystem.GetServerConfig(scope)
 	if !ok {
 		return

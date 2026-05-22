@@ -41,8 +41,8 @@ func (self *UserManager) AddUserToOrg(
 		return err
 	}
 
-	ok, _ := services.CheckAccess(root_config_obj, principal, acls.ORG_ADMIN)
-	if !ok {
+	ok, err := services.CheckAccess(root_config_obj, principal, acls.ORG_ADMIN)
+	if err != nil || !ok {
 		// Check that all the orgs have ServerAdmin
 		for _, org := range orgs {
 			org_config_obj, err := org_manager.GetOrgConfig(org)
@@ -50,11 +50,17 @@ func (self *UserManager) AddUserToOrg(
 				return err
 			}
 
-			ok, _ := services.CheckAccess(
+			ok, err := services.CheckAccess(
 				org_config_obj, principal, acls.SERVER_ADMIN)
-			if !ok {
-				return fmt.Errorf("Error: %w, User %v is not admin on %v",
-					acls.PermissionDenied, principal, org_config_obj.OrgName)
+			if err != nil || !ok {
+				err_msg := ""
+				if err != nil {
+					err_msg = err.Error()
+				}
+				return fmt.Errorf(
+					"Error: %w, User %v is not admin on %v. %s",
+					acls.PermissionDenied, principal,
+					org_config_obj.OrgName, err_msg)
 			}
 		}
 	}
@@ -71,7 +77,7 @@ func (self *UserManager) AddUserToOrg(
 		}
 
 		// Create a new user object. Password will need to be set
-		// seperately through SetUserPassword()
+		// separately through SetUserPassword()
 		user_record = &api_proto.VelociraptorUser{
 			Name: username,
 		}
@@ -93,7 +99,7 @@ func (self *UserManager) AddUserToOrg(
 	return self.SetUser(ctx, user_record)
 }
 
-// We dont expect too many orgs so O(1) is ok.
+// We don't expect too many orgs so O(1) is ok.
 func inUserOrgs(org_id string, user_record *api_proto.VelociraptorUser) bool {
 	for _, org := range user_record.Orgs {
 		if org_id == org.Id {

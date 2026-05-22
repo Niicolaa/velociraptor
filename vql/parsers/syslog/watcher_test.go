@@ -136,11 +136,8 @@ func (self *SyslogWatcherTestSuite) clearLines() {
 func (self *SyslogWatcherTestSuite) getLines() []vfilter.Row {
 	self.mu.Lock()
 	defer self.mu.Unlock()
-	result := []vfilter.Row{}
-	for _, i := range self.result {
-		result = append(result, i)
-	}
-	return result
+
+	return append([]vfilter.Row{}, self.result...)
 }
 
 func (self *SyslogWatcherTestSuite) TestSyslogReader() {
@@ -267,7 +264,7 @@ func (self *SyslogWatcherTestSuite) TestSyslogReader() {
 	// should fit in a single buffer read (50 bytes)
 	self.appendData("0123456701\n0123456702\n0123456703\n")
 
-	// The new curser is rewinded to the start of the file.
+	// The new curser is rewound to the start of the file.
 	old_curser := *cursor
 	new_cursor := service.monitorOnce(self.filename, "file", accessor, cursor)
 

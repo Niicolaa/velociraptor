@@ -99,7 +99,7 @@ func (self PathSpec) Copy() *PathSpec {
 
 func (self PathSpec) GetDelegatePath() string {
 	// We allow the delegate path to be encoded as a nested pathspec
-	// for covenience.
+	// for convenience.
 	if self.Delegate != nil {
 		return self.Delegate.String()
 	}

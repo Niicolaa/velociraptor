@@ -60,10 +60,6 @@ var (
 		"timeout", "Time collection out after this many seconds.").
 		Default("0").Float64()
 
-	query_org_id = query.Flag(
-		"org", "The Org ID to target with this query").
-		Default("root").String()
-
 	query_command_collect_cpu_limit = query.Flag(
 		"cpu_limit", "A number between 0 to 100 representing maximum CPU utilization.").
 		Default("0").Float64()
@@ -281,11 +277,10 @@ func doQuery() error {
 	defer cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	env := ordereddict.NewDict()
 	for k, v := range *env_map {
@@ -313,16 +308,16 @@ func doQuery() error {
 		logging.GetLogger(config_obj, &logging.ToolComponent).
 			Info("API Client configuration loaded - will make gRPC connection.")
 		return doRemoteQuery(
-			config_obj, *format, *query_org_id, vql_queries, env)
+			config_obj, *format, *org_id, vql_queries, env)
 	}
 
-	if *query_org_id != "" {
+	if *org_id != "" {
 		org_manager, err := services.GetOrgManager()
 		if err != nil {
 			return err
 		}
 
-		org_config_obj, err := org_manager.GetOrgConfig(*query_org_id)
+		org_config_obj, err := org_manager.GetOrgConfig(*org_id)
 		if err != nil {
 			return err
 		}
@@ -401,7 +396,7 @@ func doQuery() error {
 				timed_cancel()
 			case <-timed_ctx.Done():
 				scope.Log("collect: <red>Timeout Error:</> Collection timed out after %v",
-					time.Now().Sub(start))
+					time.Since(start))
 				// Cancel the main context.
 				cancel()
 				timed_cancel()
@@ -432,7 +427,7 @@ func doQuery() error {
 
 	start_time := time.Now()
 	defer func() {
-		scope.Log("Completed query in %v", time.Now().Sub(start_time))
+		scope.Log("Completed query in %v", time.Since(start_time))
 	}()
 
 	if *trace_vql_flag {

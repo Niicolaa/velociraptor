@@ -2,11 +2,11 @@ package journal
 
 // A replicating journal service replicates all events to the master
 // and receives events from the master node.
-
 import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -22,11 +22,11 @@ import (
 	"www.velocidex.com/golang/velociraptor/grpc_client"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/result_sets"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/utils/tempfile"
 	utils_tempfile "www.velocidex.com/golang/velociraptor/utils/tempfile"
 )
 
@@ -67,6 +67,8 @@ var (
 type jsonBatch struct {
 	bytes.Buffer
 	row_count int
+
+	opts services.JournalOptions
 }
 
 type ReplicationService struct {
@@ -201,12 +203,11 @@ func (self *ReplicationService) startAsyncLoop(
 				self.batch = make(map[string]*jsonBatch)
 				self.mu.Unlock()
 
-				for k, v := range todo {
+				for _, v := range todo {
 					// Ignore errors since there is no way to report
 					// to the caller.
 					_ = self.PushJsonlToArtifact(ctx,
-						config_obj, v.Bytes(), v.row_count, k,
-						"server", "")
+						config_obj, v.Bytes(), v.row_count, v.opts)
 				}
 			}
 		}
@@ -233,7 +234,7 @@ func (self *ReplicationService) Start(
 	self.sender = make(chan *api_proto.PushEventRequest)
 	self.SetRetryDuration(5 * time.Second)
 
-	self.tmpfile, err = tempfile.TempFile("replication")
+	self.tmpfile, err = utils_tempfile.TempFile("replication")
 	if err != nil {
 		return err
 	}
@@ -285,6 +286,9 @@ func (self *ReplicationService) Start(
 					timer.ObserveDuration()
 
 					if err != nil {
+						logger := logging.GetLogger(
+							self.config_obj, &logging.FrontendComponent)
+						logger.Error("Sending event to %v: %v", request.Artifact, err)
 						replicationTotalSendErrors.Inc()
 
 						// Attempt to push the events
@@ -342,8 +346,7 @@ func (self *ReplicationService) ProcessMasterRegistrations(event *ordereddict.Di
 func (self *ReplicationService) startMasterRegistrationLoop(
 	ctx context.Context, wg *sync.WaitGroup, config_obj *config_proto.Config) {
 
-	events, cancel := self.Watch(ctx,
-		"Server.Internal.MasterRegistrations", "ReplicationService")
+	events, cancel := self.Watch(ctx, artifacts.MASTER_REGISTRATIONS, "ReplicationService")
 
 	wg.Add(1)
 	go func() {
@@ -392,11 +395,9 @@ func (self *ReplicationService) AppendJsonlToResultSet(
 	if err != nil {
 		return err
 	}
+	defer rs_writer.Close()
 
-	rs_writer.WriteJSONL(jsonl, uint64(row_count))
-	rs_writer.Close()
-
-	return nil
+	return rs_writer.WriteJSONL(jsonl, uint64(row_count))
 }
 
 func (self *ReplicationService) AppendToResultSet(
@@ -444,20 +445,27 @@ func (self *ReplicationService) AppendToResultSet(
 
 func (self *ReplicationService) Broadcast(
 	ctx context.Context, config_obj *config_proto.Config,
-	rows []*ordereddict.Dict, artifact, client_id, flows_id string) error {
+	rows []*ordereddict.Dict, opts services.JournalOptions) error {
 
 	return notInitializedError
 }
 
+func getKey(opts services.JournalOptions) string {
+	return opts.Username + ":" + opts.ArtifactName
+}
+
 func (self *ReplicationService) PushRowsToArtifactAsync(
 	ctx context.Context, config_obj *config_proto.Config,
-	row *ordereddict.Dict, artifact string) {
+	row *ordereddict.Dict, opts services.JournalOptions) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	queue, pres := self.batch[artifact]
+	key := getKey(opts)
+	queue, pres := self.batch[key]
 	if !pres {
-		queue = &jsonBatch{}
+		queue = &jsonBatch{
+			opts: opts,
+		}
 	}
 
 	serialized, err := row.MarshalJSON()
@@ -465,60 +473,99 @@ func (self *ReplicationService) PushRowsToArtifactAsync(
 		queue.Write(serialized)
 		queue.Write([]byte("\n"))
 	}
-	self.batch[artifact] = queue
+	self.batch[key] = queue
 }
 
 func (self *ReplicationService) pushRowsToLocalQueueManager(
 	ctx context.Context, config_obj *config_proto.Config,
-	rows []*ordereddict.Dict, artifact, client_id, flows_id string) error {
+	rows []*ordereddict.Dict, opts services.JournalOptions) error {
 
-	path_manager, err := artifacts.NewArtifactPathManager(ctx,
-		config_obj, client_id, flows_id, artifact)
+	mode, err := GetArtifactMode(ctx, config_obj, opts)
 	if err != nil {
 		return err
 	}
 
-	// Just a regular artifact, append to the existing result set.
-	if !path_manager.IsEvent() {
+	path_manager := artifacts.NewArtifactPathManagerWithMode(
+		config_obj, opts.ClientId, opts.FlowId, opts.ArtifactName, mode)
+
+	switch mode {
+	// Event artifacts are written directly to the queue manager
+	case artifact_modes.MODE_INTERNAL,
+		artifact_modes.MODE_CLIENT_EVENT,
+		artifact_modes.MODE_SERVER_EVENT:
+		if self == nil || self.qm == nil {
+			return errors.New("Filestore not initialized")
+		}
+
+		err := self.qm.PushEventRows(
+			path_manager, opts.Username, rows)
+		if err != nil {
+			return err
+		}
+
+		// On the minions the events must also be replicated to the
+		// master.
+		return nil
+
+		// Real artifacts are written to the filestore.
+	case artifact_modes.MODE_CLIENT,
+		artifact_modes.MODE_SERVER:
 		path, err := path_manager.GetPathForWriting()
 		if err != nil {
 			return err
 		}
 		return self.AppendToResultSet(config_obj, path, rows,
 			services.JournalOptions{})
-	}
-
-	// The Queue manager will manage writing event artifacts to a
-	// timed result set, including multi frontend synchronisation.
-	if self != nil && self.qm != nil {
-		return self.qm.PushEventRows(path_manager, rows)
+	default:
+		return fmt.Errorf("Invalid mode %v for artifact %v",
+			mode, opts.ArtifactName)
 	}
 	return errors.New("Filestore not initialized")
 }
 
 func (self *ReplicationService) pushJsonlToLocalQueueManager(
 	ctx context.Context, config_obj *config_proto.Config,
-	jsonl []byte, row_count int, artifact, client_id, flows_id string) error {
+	jsonl []byte, row_count int, opts services.JournalOptions) error {
 
-	path_manager, err := artifacts.NewArtifactPathManager(ctx,
-		config_obj, client_id, flows_id, artifact)
+	mode, err := GetArtifactMode(ctx, config_obj, opts)
 	if err != nil {
 		return err
 	}
 
-	// Just a regular artifact, append to the existing result set.
-	if !path_manager.IsEvent() {
+	path_manager := artifacts.NewArtifactPathManagerWithMode(
+		config_obj, opts.ClientId, opts.FlowId, opts.ArtifactName, mode)
+
+	switch mode {
+	// Event artifacts are written directly to the queue manager
+	case artifact_modes.MODE_INTERNAL,
+		artifact_modes.MODE_CLIENT_EVENT,
+		artifact_modes.MODE_SERVER_EVENT:
+		if self == nil || self.qm == nil {
+			return errors.New("Filestore not initialized")
+		}
+
+		err := self.qm.PushEventJsonl(
+			path_manager, opts.Username, jsonl, row_count)
+		if err != nil {
+			return err
+		}
+
+		// On the minions the events must also be replicated to the
+		// master.
+		return nil
+
+		// Real artifacts are written to the filestore.
+	case artifact_modes.MODE_CLIENT,
+		artifact_modes.MODE_SERVER:
 		path, err := path_manager.GetPathForWriting()
 		if err != nil {
 			return err
 		}
 		return self.AppendJsonlToResultSet(config_obj, path, jsonl, row_count)
-	}
 
-	// The Queue manager will manage writing event artifacts to a
-	// timed result set, including multi frontend synchronisation.
-	if self != nil && self.qm != nil {
-		return self.qm.PushEventJsonl(path_manager, jsonl, row_count)
+	default:
+		return fmt.Errorf("Invalid mode %v for artifact %v",
+			mode, opts.ArtifactName)
 	}
 	return errors.New("Filestore not initialized")
 }
@@ -526,17 +573,16 @@ func (self *ReplicationService) pushJsonlToLocalQueueManager(
 func (self *ReplicationService) PushJsonlToArtifact(
 	ctx context.Context, config_obj *config_proto.Config,
 	jsonl []byte, row_count int,
-	artifact, client_id, flow_id string) error {
+	opts services.JournalOptions) error {
 
 	err := self.pushJsonlToLocalQueueManager(ctx,
-		config_obj, jsonl, row_count, artifact,
-		client_id, flow_id)
+		config_obj, jsonl, row_count, opts)
 	if err != nil {
 		return err
 	}
 
 	// Do not replicate the event if the master does not care about it.
-	if !self.isEventRegistered(artifact) {
+	if !self.isEventRegistered(opts.ArtifactName) {
 		return nil
 	}
 
@@ -544,17 +590,18 @@ func (self *ReplicationService) PushJsonlToArtifact(
 
 	replicationItemSize.Observe(float64(len(jsonl)))
 	request := &api_proto.PushEventRequest{
-		Artifact: artifact,
-		ClientId: client_id,
-		FlowId:   flow_id,
+		Artifact: opts.ArtifactName,
+		ClientId: opts.ClientId,
+		FlowId:   opts.FlowId,
 		Jsonl:    jsonl,
 		OrgId:    self.config_obj.OrgId,
+		Username: opts.Username,
 	}
 
 	logger := logging.GetLogger(self.config_obj, &logging.FrontendComponent)
 	logger.Debug("<green>ReplicationService %v</> Sending %v bytes to %v for %v.",
 		services.GetOrgName(config_obj),
-		len(jsonl), artifact, client_id)
+		len(jsonl), opts.ArtifactName, opts.Username)
 
 	// Should not block! If the channel is full we save the event
 	// into the file buffer for later.
@@ -568,7 +615,7 @@ func (self *ReplicationService) PushJsonlToArtifact(
 
 func (self *ReplicationService) PushRowsToArtifact(
 	ctx context.Context, config_obj *config_proto.Config,
-	rows []*ordereddict.Dict, artifact, client_id, flow_id string) error {
+	rows []*ordereddict.Dict, opts services.JournalOptions) error {
 
 	serialized, err := json.MarshalJsonl(rows)
 	if err != nil {
@@ -576,26 +623,26 @@ func (self *ReplicationService) PushRowsToArtifact(
 	}
 	replicationItemSize.Observe(float64(len(serialized)))
 
-	err = self.pushRowsToLocalQueueManager(ctx,
-		config_obj, rows, artifact, client_id, flow_id)
+	err = self.pushRowsToLocalQueueManager(ctx, config_obj, rows, opts)
 	if err != nil {
 		return err
 	}
 
 	// Do not replicate the event if the master does not care about it.
-	if !self.isEventRegistered(artifact) {
+	if !self.isEventRegistered(opts.ArtifactName) {
 		return nil
 	}
 
 	replicationTotalSent.Inc()
 
 	request := &api_proto.PushEventRequest{
-		Artifact: artifact,
-		ClientId: client_id,
-		FlowId:   flow_id,
+		Artifact: opts.ArtifactName,
+		ClientId: opts.ClientId,
+		FlowId:   opts.FlowId,
 		Jsonl:    serialized,
 		Rows:     int64(len(rows)),
 		OrgId:    self.config_obj.OrgId,
+		Username: opts.Username,
 	}
 
 	// Should not block! If the channel is full we save the event
@@ -613,8 +660,15 @@ func (self *ReplicationService) GetWatchers() []string {
 	return nil
 }
 
-// Watch the master for new events
 func (self *ReplicationService) Watch(
+	ctx context.Context, queue services.JournalOptions,
+	watcher_name string) (<-chan *ordereddict.Dict, func()) {
+
+	return self.WatchArtifact(ctx, queue.ArtifactName, watcher_name)
+}
+
+// Watch the master for new events
+func (self *ReplicationService) WatchArtifact(
 	ctx context.Context, queue, watcher_name string) (
 	<-chan *ordereddict.Dict, func()) {
 
@@ -628,6 +682,9 @@ func (self *ReplicationService) Watch(
 		retry:
 			for {
 				select {
+				case <-self.ctx.Done():
+					return
+
 				case event, ok := <-in_chan:
 					if !ok {
 						break retry

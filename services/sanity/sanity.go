@@ -12,6 +12,7 @@ import (
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	artifacts_proto "www.velocidex.com/golang/velociraptor/artifacts/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/datastore"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
@@ -101,13 +102,6 @@ func (self *SanityChecks) CheckRootOrg(
 			config_obj.Frontend.Resources.ExpectedClients = 10000
 		}
 
-		// DynDns.Hostname is deprecated, moved to Frontend.Hostname
-		if config_obj.Frontend.Hostname == "" &&
-			config_obj.Frontend.DynDns != nil &&
-			config_obj.Frontend.DynDns.Hostname != "" {
-			config_obj.Frontend.Hostname = config_obj.Frontend.DynDns.Hostname
-		}
-
 		if config_obj.Frontend.CollectionErrorRegex != "" {
 			_, err := regexp.Compile(config_obj.Frontend.CollectionErrorRegex)
 			if err != nil {
@@ -155,7 +149,8 @@ func (self *SanityChecks) Check(
 func configServerMetadata(
 	ctx context.Context, config_obj *config_proto.Config) error {
 
-	client_path_manager := paths.NewClientPathManager("server")
+	client_path_manager := paths.NewClientPathManager(
+		constants.VELOCIRAPTOR_SERVER_CLIENT_ID)
 	db, err := datastore.GetDB(config_obj)
 	if err != nil {
 		return err

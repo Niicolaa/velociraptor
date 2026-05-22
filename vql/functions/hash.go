@@ -31,7 +31,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/constants"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -70,7 +69,7 @@ type HashFunctionArgs struct {
 }
 
 // HashFunction calculates a hash of a file. It may be expensive
-// so we make it cancelllable.
+// so we make it cancellable.
 type HashFunction struct{}
 
 func (self *HashFunction) Call(ctx context.Context,
@@ -199,11 +198,12 @@ func (self *HashFunction) Call(ctx context.Context,
 
 func (self HashFunction) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "hash",
-		Doc:      "Calculate the hash of a file.",
-		ArgType:  type_map.AddType(scope, &HashFunctionArgs{}),
-		Version:  3,
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Name:    "hash",
+		Doc:     "Calculate the hash of a file.",
+		ArgType: type_map.AddType(scope, &HashFunctionArgs{}),
+		Version: 3,
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.FILESYSTEM_READ).Build(),
 	}
 }
 

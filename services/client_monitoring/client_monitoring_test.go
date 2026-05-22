@@ -54,7 +54,6 @@ sources:
 type ClientMonitoringTestSuite struct {
 	test_utils.TestSuite
 	client_id string
-	flow_id   string
 }
 
 func (self *ClientMonitoringTestSuite) SetupTest() {
@@ -408,7 +407,7 @@ func (self *ClientMonitoringTestSuite) TestClientMonitoringCompiling() {
 		self.client_id, version))
 }
 
-// Event queries are asyncronous and blocking so when collecting
+// Event queries are asynchronous and blocking so when collecting
 // multiple queries, we need to send each query in its own Event entry
 // so they can run in parallel. The client runs each Event object in a
 // separate goroutine. It is not allowed to send multiple SELECT
@@ -493,7 +492,7 @@ func (self *ClientMonitoringTestSuite) TestClientMonitoring() {
 		context.Background(), self.ConfigObj,
 		self.client_id, 50))
 
-	// If a client presents the same table version they dont need to do anything.
+	// If a client presents the same table version they don't need to do anything.
 	assert.False(self.T(), manager.CheckClientEventsVersion(
 		context.Background(), self.ConfigObj,
 		self.client_id, uint64(10000000000)))

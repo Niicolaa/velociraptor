@@ -14,7 +14,7 @@ import (
 // Convert from various errors into gRPC status errors. This will be
 // translated into proper HTTP codes by the gRPC gateway
 func Status(verbose bool, err error) error {
-	// Do not interfer with status messages already.
+	// Do not interfere with status messages already.
 	_, ok := status.FromError(err)
 	if ok {
 		return err

@@ -242,7 +242,7 @@ func (self *WebSocketConnection) PumpMessagesFromServer(req *http.Request) {
 		case self.from_server <- response:
 		}
 
-		// If an error occured terminate the connection. Connection
+		// If an error occurred terminate the connection. Connection
 		// will be removed and recreated by our caller.
 		if response.StatusCode != http.StatusOK {
 			return

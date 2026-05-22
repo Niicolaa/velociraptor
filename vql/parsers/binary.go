@@ -7,7 +7,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/constants"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/readers"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -20,9 +19,10 @@ import (
 type ParseBinaryFunctionArg struct {
 	Filename *accessors.OSPath `vfilter:"required,field=filename,doc=Binary file to open."`
 	Accessor string            `vfilter:"optional,field=accessor,doc=The accessor to use"`
-	Profile  string            `vfilter:"optional,field=profile,doc=Profile to use (see https://github.com/Velocidex/vtypes)."`
+	Profile  string            `vfilter:"optional,field=profile,doc=Profile to use (see [vfilter](https://github.com/Velocidex/vtypes))."`
 	Struct   string            `vfilter:"required,field=struct,doc=Name of the struct in the profile to instantiate."`
 	Offset   int64             `vfilter:"optional,field=offset,doc=Start parsing from this offset"`
+	Env      *ordereddict.Dict `vfilter:"optional,field=env,doc=Additional environment variables to make available to the profile"`
 }
 type ParseBinaryFunction struct{}
 
@@ -31,7 +31,8 @@ func (self ParseBinaryFunction) Info(scope vfilter.Scope, type_map *vfilter.Type
 		Name:     "parse_binary",
 		Doc:      "Parse a binary file into a datastructure using a profile.",
 		ArgType:  type_map.AddType(scope, &ParseBinaryFunctionArg{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 
@@ -71,7 +72,14 @@ func (self ParseBinaryFunction) Call(
 		return &vfilter.Null{}
 	}
 
-	obj, err := profile.Parse(scope, arg.Struct, paged_reader, arg.Offset)
+	subscope := scope.Copy()
+	defer subscope.Close()
+
+	if arg.Env != nil {
+		subscope.AppendVars(arg.Env)
+	}
+
+	obj, err := profile.Parse(subscope, arg.Struct, paged_reader, arg.Offset)
 	if err != nil {
 		scope.Log("parse_binary: %v", err)
 		return &vfilter.Null{}

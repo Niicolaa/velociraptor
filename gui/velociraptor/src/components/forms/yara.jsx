@@ -17,7 +17,7 @@ let gcompletions=[
 
 let Completer = {
     // When the last part matches this, the completer kicks in. We
-    // want it to triggr on ?
+    // want it to trigger on ?
     identifierRegexps: [/\?|\\|\[|\(|\||\?|\*|\{/],
 
     getCompletions: (editor, session, pos, prefix, callback) => {

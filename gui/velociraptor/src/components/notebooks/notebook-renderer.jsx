@@ -66,6 +66,7 @@ export default class NotebookRenderer extends React.Component {
             api.post('v1/UpdateNotebook', notebook,
                      this.source.token).then(response=>{
                          if (response.cancel) return;
+
                          this.props.updateVersion();
                          this.setState({loading: false, locked: 0});
                      }).catch(e=> {
@@ -80,7 +81,7 @@ export default class NotebookRenderer extends React.Component {
         let notebook = Object.assign({}, this.props.notebook);
         let cell_metadata = [...notebook.cell_metadata];
 
-        // Dont allow us to remove all cells.
+        // Don't allow us to remove all cells.
         if (cell_metadata.length <= 1) {
             return;
         }
@@ -183,10 +184,12 @@ export default class NotebookRenderer extends React.Component {
     }
 
     getRef = cell_id=>{
-        let res = this.state.refs[cell_id];
+        let refs = this.state.refs;
+        let res = refs[cell_id];
         if(!res) {
             res = React.createRef();
-            this.state.refs[cell_id] = res;
+            refs[cell_id] = res;
+            this.setState({refs: refs});
         }
         return res;
     }

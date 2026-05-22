@@ -70,8 +70,8 @@ class EventTableLabelGroup extends React.Component {
     };
 
     // Build the label suggestion list:
-    // 1. First up is the All label targetting all endpoints.
-    // 2. Next at the top is the labels already targetted
+    // 1. First up is the All label targeting all endpoints.
+    // 2. Next at the top is the labels already targeted
     // 3. Following are all the other labels.
     createSuggestionList = () => {
         let existing_labels = [];

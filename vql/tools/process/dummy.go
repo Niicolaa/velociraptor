@@ -26,8 +26,6 @@ type DummyProcessTracker struct {
 	mu     sync.Mutex
 	lookup map[string]*ProcessEntry
 	age    time.Time
-
-	max_items int64
 }
 
 // Refresh the local cache to avoid having to make too many pslist calls.
@@ -40,7 +38,7 @@ func (self *DummyProcessTracker) getLookup(
 		self.lookup = make(map[string]*ProcessEntry)
 	}
 
-	// Expire old looksup after 10 seconds
+	// Expire old lookups after 10 seconds
 	now := time.Now()
 	if now.Before(self.age.Add(10 * time.Second)) {
 		return self.lookup

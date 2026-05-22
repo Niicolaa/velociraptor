@@ -235,7 +235,7 @@ Client:
   prevent_execve: false
 
   # The default max time to wait before we send partial VQL
-  # results. This setting is used to ensure we dont send too many
+  # results. This setting is used to ensure we don't send too many
   # small requests by batching the rows into time batches.
   default_max_wait: 60
 
@@ -379,8 +379,8 @@ Client:
   low_resource_max_cpu: 50
 
   # We determine we are running on a low resource machine if the
-  # system has less than 2 cores. This allows to increase the
-  # threadhold. Set to a large number to disable.
+  # system has less than 2 cores. This allows you to increase the
+  # threshold. Set to a large number to disable.
   low_resource_cpu_count: 1
 
   # If greater than 0 we install a local DNS cache. This is usually
@@ -578,6 +578,19 @@ GUI:
     # Allow IdP-initiated SAML flow.
     saml_allow_idp_initiated: false
 
+    # This feature allows roles to be set in the SAML claims. It is a
+    # similar feature to the OIDC Role setting below but less
+    # flexible. If you need more flexibility, prefer to use the OIDC
+    # flow.
+    #
+    # When these are configured, any user that authenticated with SAML
+    # will receive these roles on *all* the orgs. These roles are the
+    # minimum roles the user can have - you can add more roles via the
+    # GUI
+    #
+    # NOTE: roles are additive which means you can not revoke the
+    # roles from the IDP. If you need this use the OIDC flow below
+    # with the override_acls flag.
     saml_user_roles:
       - analyst
       - investigator
@@ -624,6 +637,8 @@ GUI:
       # claim (the claim can be named for example 'roles'). If this is
       # configured we use the role map below to assign Velociraptor
       # roles based on the OIDC server's roles.
+      #
+      # NOTE: The roles will be assigned to the user in all orgs.
       roles: ""
 
       # A mapping between OIDC claim roles and Velociraptor roles.
@@ -632,6 +647,18 @@ GUI:
         Velociraptor.Reader:
           roles:
             - reader
+
+      # Velociraptor usually requires the email_verified claim before
+      # we can trust the email claim and use it as the
+      # username. However, some IDP (e.g. Azure) do not set this. If
+      # you want to ignore this requirement, set the below to true.
+      allow_unverified_email: false
+
+      # When this is set, the OIDC roles override (clear) existing
+      # velociraptor roles. The default behavior is to ensure the
+      # user's ACL contains at least the OIDC roles. This is needed if
+      # you want to be able to **remove** access from the IDP.
+      override_acls: false
 
     # This is specifically required by the Azure authenticator only.
     tenant: O...
@@ -674,7 +701,7 @@ Frontend:
   base_path: "/"
 
   # This allows the frontends to listen on plain HTTP - It is useful
-  # if you have SSL offloading (e.g. ngix). This is not configured by
+  # if you have SSL offloading (e.g. nginx). This is not configured by
   # the wizard - you will need to manually configure it. You better
   # know what you are doing here!
   use_plain_http: false
@@ -696,7 +723,7 @@ Frontend:
 
   # A proxy setting to use - Velociraptor needs to connect to download
   # tools. This setting will force it to go out over this proxy. NOTE-
-  # If you dont want to allow outbound connections, just set this to
+  # If you don't want to allow outbound connections, just set this to
   # an non existent setting (e.g. http://127.0.0.1:3128).
   proxy: "http://127.0.0.1:3128"
 
@@ -1016,7 +1043,7 @@ Logging:
   output_directory: /mnt/data/logs
 
   ## If this is set the logs will be separated into different
-  ## components (eg. Frontend, GUI, Audit etc). This makes it easier
+  ## components (e.g. Frontend, GUI, Audit etc). This makes it easier
   ## to find the source of the log messages
   separate_logs_per_component: true
 
@@ -1361,9 +1388,14 @@ defaults:
 
   # The server maintains an index of all hunts in order to quickly
   # allow the GUI to filter/sort them. This setting controls how often
-  # to rebuild the hunt index (default 600 sec). You probably dont
+  # to rebuild the hunt index (default 600 sec). You probably don't
   # need to change it.
   hunt_dispatcher_refresh_sec: 600
+
+  # The hunt dispatcher index rebuild is rate limited to reduce load
+  # on the server. This sets how fast it should go (in flows per
+  # second). You probably do not want to change this.
+  hunt_dispatcher_refresh_rate: 10
 
   # Total number of cell versions we keep for undo/redo support.
   notebook_versions: 5
@@ -1421,7 +1453,7 @@ defaults:
   indexed_client_metadata:
     - department
 
-  # If this is set we do not actively check the status of inflight
+  # If this is set we do not actively check the status of in-flight
   # collections. This is a new feature to 0.73 and may need to be
   # disabled in some large deployments due to additional overheads.
   disable_active_inflight_checks: false
@@ -1479,6 +1511,10 @@ security:
   allowed_file_accessor_prefix:
     - /tmp/
 
+  # Deny takes precedent over allow.
+  denied_file_accessor_prefix:
+    - /bin/
+
   # A list of prefixes allowed for the fs accessor. All other
   # prefixes will be rejected.
   allowed_fs_accessor_prefix:
@@ -1490,6 +1526,10 @@ security:
    - temp
    - server_artifacts
    - server_artifacts_logs
+
+  # Deny takes precedent over allow.
+  denied_fs_accessor_prefix:
+   - config
 
 
   # If these are set we enforce VQL to only have the specified allowed
@@ -1535,13 +1575,16 @@ security:
 
   # The Data Encryptions Key to use for protecting the secrets in
   # storage. This can take a number of forms:
-
-  # 1. If it starts with "env://<VAR>" the secret will be taken from an
+  #
+  # 1. If it starts with `env://<VAR>` the secret will be taken from an
   #    Environment variable.
   # 2. If empty the secret is taken from obfuscation_nonce (which
   #    by default is the hash of the private key).
   #
   # In future further methods may be implemented (e.g. EKMS).
+  #
+  # See the following for more information
+  # http://docs.velociraptor.app/docs/deployment/security/#protecting-stored-secrets
   secrets_dek: ""
 
   # This controls VQL plugins that may accept secrets as well full

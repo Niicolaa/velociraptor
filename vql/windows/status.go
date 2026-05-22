@@ -335,7 +335,7 @@ const (
 	STATUS_GRAPHICS_PVP_NO_MONITORS_CORRESPOND_TO_DISPLAY_DEVICE = 0xC01E050D
 	// A certificate could not be returned because the certificate buffer passed to the function was too small.
 	STATUS_GRAPHICS_PVP_INVALID_CERTIFICATE_LENGTH = 0xC01E050E
-	// DxgkDdiOpmCreateProtectedOutput() could not create a protected output because the video present yarget is in spanning mode.
+	// DxgkDdiOpmCreateProtectedOutput() could not create a protected output because the video present target is in spanning mode.
 	STATUS_GRAPHICS_OPM_SPANNING_MODE_ENABLED = 0xC01E050F
 	// DxgkDdiOpmCreateProtectedOutput() could not create a protected output because the video present target is in theater mode.
 	STATUS_GRAPHICS_OPM_THEATER_MODE_ENABLED = 0xC01E0510

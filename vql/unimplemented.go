@@ -5,10 +5,10 @@ import (
 	"runtime"
 
 	"github.com/Velocidex/ordereddict"
-	"gopkg.in/yaml.v2"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	"www.velocidex.com/golang/velociraptor/artifacts/assets"
 	"www.velocidex.com/golang/velociraptor/utils"
+	"www.velocidex.com/golang/velociraptor/utils/yaml"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/types"
 )
@@ -67,7 +67,7 @@ func (self *RejectedFunction) Call(ctx context.Context,
 	args *ordereddict.Dict) vfilter.Any {
 
 	DeduplicatedLog(scope, self.Name,
-		"VQL Function %v() has been blocked in the configuration. Please update the configuration file to allow it.",
+		"ERROR:VQL Function %v() has been blocked in the configuration. Please update the configuration file to allow it.",
 		self.Name)
 
 	return vfilter.Null{}
@@ -121,7 +121,7 @@ func (self *RejectedPlugin) Call(ctx context.Context,
 	output_chan := make(chan vfilter.Row)
 
 	DeduplicatedLog(scope, self.Name,
-		"VQL Plugin %v() has been blocked in the configuration. Please update the configuration file to allow it.",
+		"ERROR:VQL Plugin %v() has been blocked in the configuration. Please update the configuration file to allow it.",
 		self.Name)
 
 	close(output_chan)

@@ -28,9 +28,9 @@ import (
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/logging"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/acl_managers"
 	"www.velocidex.com/golang/velociraptor/vql/functions"
@@ -43,6 +43,7 @@ import (
 
 type ScheduleHuntFunctionArg struct {
 	Description   string           `vfilter:"optional,field=description,doc=Description of the hunt"`
+	Tags          []string         `vfilter:"optional,field=tags,doc=A list of tags to add to the hunt"`
 	Artifacts     []string         `vfilter:"required,field=artifacts,doc=A list of artifacts to collect"`
 	Expires       vfilter.LazyExpr `vfilter:"optional,field=expires,doc=A time for expiry (e.g. now() + 1800)"`
 	Spec          vfilter.Any      `vfilter:"optional,field=spec,doc=Parameters to apply to the artifacts"`
@@ -126,8 +127,9 @@ func (self *ScheduleHuntFunction) Call(ctx context.Context,
 		return vfilter.Null{}
 	}
 
+	principal := vql_subsystem.GetPrincipal(scope)
 	request := &flows_proto.ArtifactCollectorArgs{
-		Creator:        vql_subsystem.GetPrincipal(scope),
+		Creator:        principal,
 		Artifacts:      arg.Artifacts,
 		OpsPerSecond:   float32(arg.OpsPerSecond),
 		CpuLimit:       float32(arg.CpuLimit),
@@ -137,7 +139,6 @@ func (self *ScheduleHuntFunction) Call(ctx context.Context,
 		MaxUploadBytes: arg.MaxBytes,
 	}
 
-	principal := vql_subsystem.GetPrincipal(scope)
 	err = collector.AddSpecProtobuf(ctx, config_obj, repository, scope,
 		arg.Spec, request)
 	if err != nil {
@@ -156,6 +157,10 @@ func (self *ScheduleHuntFunction) Call(ctx context.Context,
 		StartRequest:    request,
 		Expires:         expires,
 		State:           state,
+	}
+
+	if len(arg.Tags) > 0 {
+		hunt_request.Tags = append(hunt_request.Tags, arg.Tags...)
 	}
 
 	if len(arg.IncludeLabels) > 0 {
@@ -297,7 +302,8 @@ func (self ScheduleHuntFunction) Info(scope vfilter.Scope, type_map *vfilter.Typ
 		Name:     "hunt",
 		Doc:      "Launch an artifact collection against a client.",
 		ArgType:  type_map.AddType(scope, &ScheduleHuntFunctionArg{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.START_HUNT, acls.ORG_ADMIN).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.START_HUNT, acls.ORG_ADMIN).Build(),
+		Version:  3,
 	}
 }
 
@@ -418,14 +424,15 @@ func (self *AddToHuntFunction) Call(ctx context.Context,
 						FlowId:   arg.FlowId,
 					},
 				})},
-			"Server.Internal.HuntModification", arg.ClientId, "")
+			artifacts.HUNT_MODIFICATIONS)
+
 	} else {
 		err = journal.PushRowsToArtifact(ctx, config_obj,
 			[]*ordereddict.Dict{ordereddict.NewDict().
 				Set("HuntId", arg.HuntId).
 				Set("ClientId", arg.ClientId).
 				Set("Override", true)},
-			"System.Hunt.Participation", arg.ClientId, "")
+			artifacts.HUNT_PARTICIPATION)
 	}
 
 	if err != nil {
@@ -442,7 +449,8 @@ func (self AddToHuntFunction) Info(scope vfilter.Scope,
 		Name:     "hunt_add",
 		Doc:      "Assign a client to a hunt.",
 		ArgType:  type_map.AddType(scope, &AddToHuntFunctionArg{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.START_HUNT).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.START_HUNT).Build(),
+		Version:  2,
 	}
 }
 

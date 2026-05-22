@@ -96,11 +96,11 @@ export class HexViewPopup extends React.Component {
 
 
 
-// A hex viewer suitable for small amountfs of text - No paging.
+// A hex viewer suitable for small amount of text - No paging.
 export default class HexView extends React.Component {
     static propTypes = {
         highlights: PropTypes.object,
-        // Version of the highlights array to manage highligh updates
+        // Version of the highlights array to manage highlight updates
         highlight_version: PropTypes.number,
         base_offset: PropTypes.number,
         byte_array: PropTypes.any,

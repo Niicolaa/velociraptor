@@ -70,7 +70,7 @@ consider extending the default validation.`).
 				).
 				Value(&config.CertExpiration),
 
-			// This causes too many problems with users who dont know
+			// This causes too many problems with users who don't know
 			// what this does and enable it. Taking it out of the
 			// wizard should prevent these issues. Users can add this
 			// later.

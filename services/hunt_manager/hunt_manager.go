@@ -64,9 +64,9 @@ import (
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
-	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/journal"
 	"www.velocidex.com/golang/velociraptor/utils"
@@ -97,7 +97,7 @@ type HuntManager struct {
 	scope vfilter.Scope
 
 	// Limits how quickly we schedule hunts. Should be fast enough
-	// to be reasoable without overloading frontends
+	// to be reasonable without overloading frontends
 	limiter *rate.Limiter
 }
 
@@ -111,37 +111,34 @@ func (self *HuntManager) Start(
 		config_obj.Frontend.Resources.NotificationsPerSecond)
 
 	err := journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.HuntModification",
-		"HuntManager",
-		self.ProcessMutation)
+		artifacts.HUNT_MODIFICATIONS,
+		"HuntManager", self.ProcessMutation)
 	if err != nil {
 		return err
 	}
 
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"System.Hunt.Participation",
-		"HuntManager",
-		self.ProcessParticipation)
+		artifacts.HUNT_PARTICIPATION,
+		"HuntManager", self.ProcessParticipation)
 	if err != nil {
 		return err
 	}
 
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.Label", "HuntManager",
-		self.ProcessLabelChange)
+		artifacts.LABEL_QUEUE, "HuntManager", self.ProcessLabelChange)
 	if err != nil {
 		return err
 	}
 
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.Interrogation", "HuntManager",
+		artifacts.INTERROGATION_QUEUE, "HuntManager",
 		self.ProcessInterrogation)
 	if err != nil {
 		return err
 	}
 
 	err = journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"System.Flow.Completion", "HuntManager",
+		artifacts.FLOW_COMPLETION, "HuntManager",
 		self.ProcessFlowCompletion)
 	return err
 }
@@ -186,14 +183,10 @@ func (self *HuntManager) ProcessFlowCompletion(
 		return nil
 	}
 
-	flow, ok := flow_any.(*flows_proto.ArtifactCollectorContext)
-	if !ok || flow == nil {
-		serialized, err := json.Marshal(flow_any)
-		if err != nil {
-			return err
-		}
-		flow = &flows_proto.ArtifactCollectorContext{}
-		err = json.Unmarshal(serialized, flow)
+	flow_obj, ok := flow_any.(*flows_proto.ArtifactCollectorContext)
+	if !ok || flow_obj == nil {
+		flow_obj = &flows_proto.ArtifactCollectorContext{}
+		err := utils.ParseIntoProtobuf(flow_any, flow_obj)
 		if err != nil {
 			return err
 		}
@@ -218,19 +211,22 @@ func (self *HuntManager) ProcessFlowCompletion(
 	// manipulation.
 	mutation := &api_proto.HuntMutation{
 		HuntId: hunt_id,
-		Stats:  &api_proto.HuntStats{},
+		Stats: &api_proto.HuntStats{
+			// All completions increment this counter.
+			TotalClientsWithResults: 1,
+			TotalUploadedBytes:      flow_obj.TotalUploadedBytes,
+			TotalCollectedRows:      flow_obj.TotalCollectedRows,
+			TotalFinishedClients:    1,
+		},
 	}
 
-	// All completions increment this counter.
-	mutation.Stats.TotalClientsWithResults = 1
-
 	// Only errored completions increment this one.
-	if flow.State == flows_proto.ArtifactCollectorContext_ERROR {
+	if flow_obj.State == flows_proto.ArtifactCollectorContext_ERROR {
 		mutation.Stats.TotalClientsWithErrors = 1
 	}
 
 	// The minion hunt dispatcher does not actually care about flow
-	// status, so we dont bother broadcasting a mutation for them. We
+	// status, so we don't bother broadcasting a mutation for them. We
 	// only need to update the local hunt dispatcher on the master
 	// node which will flush to disk eventually.
 	err := self.processMutation(ctx, config_obj, mutation)
@@ -246,12 +242,12 @@ func (self *HuntManager) ProcessFlowCompletion(
 	path_manager := paths.NewHuntPathManager(hunt_id)
 	return journal.AppendToResultSet(config_obj, path_manager.ClientErrors(),
 		[]*ordereddict.Dict{ordereddict.NewDict().
-			Set("ClientId", flow.ClientId).
-			Set("FlowId", flow.SessionId).
-			Set("StartTime", time.Unix(0, int64(flow.StartTime*1000))).
-			Set("EndTime", time.Unix(0, int64(flow.ActiveTime*1000))).
-			Set("Status", flow.State.String()).
-			Set("Error", flow.Status)}, services.JournalOptions{})
+			Set("ClientId", flow_obj.ClientId).
+			Set("FlowId", flow_obj.SessionId).
+			Set("StartTime", time.Unix(0, int64(flow_obj.StartTime*1000))).
+			Set("EndTime", time.Unix(0, int64(flow_obj.ActiveTime*1000))).
+			Set("Status", flow_obj.State.String()).
+			Set("Error", flow_obj.Status)}, services.JournalOptions{})
 }
 
 // When a label is changed we check all the active hunts to see if any
@@ -296,19 +292,29 @@ func (self *HuntManager) participateInRunningHunts(ctx context.Context,
 		return err
 	}
 
-	return dispatcher.ApplyFuncOnHunts(ctx, services.OnlyRunningHunts,
+	var rows []*ordereddict.Dict
+
+	// Hold the lock on the hunt dispatcher as quickly as possible.
+	err = dispatcher.ApplyFuncOnHunts(ctx, services.OnlyRunningHunts,
 		func(hunt *api_proto.Hunt) error {
-			if !should_participate_cb(hunt) {
-				return nil
-			}
-
-			journal.PushRowsToArtifactAsync(ctx, config_obj,
-				ordereddict.NewDict().
+			if should_participate_cb(hunt) {
+				rows = append(rows, ordereddict.NewDict().
 					Set("HuntId", hunt.HuntId).
-					Set("ClientId", client_id), "System.Hunt.Participation")
-
+					Set("ClientId", client_id))
+			}
 			return nil
 		})
+	if err != nil {
+		return err
+	}
+
+	// Now send the messages without the lock.
+	for _, r := range rows {
+		journal.PushRowsToArtifactAsync(ctx, config_obj, r,
+			artifacts.HUNT_PARTICIPATION)
+	}
+
+	return nil
 }
 
 // When a client is found to be missing a hunt, the foreman sends the
@@ -331,13 +337,8 @@ func (self *HuntManager) ProcessParticipationWithError(
 	config_obj *config_proto.Config,
 	row *ordereddict.Dict) error {
 
-	serialized, err := row.MarshalJSON()
-	if err != nil {
-		return err
-	}
-
 	participation_row := &ParticipationRecord{}
-	err = json.Unmarshal(serialized, participation_row)
+	err := utils.ParseIntoStruct(row, participation_row)
 	if err != nil {
 		logger := logging.GetLogger(config_obj, &logging.FrontendComponent)
 		logger.Debug("ProcessParticipation: %v", err)
@@ -535,7 +536,7 @@ func huntMatchesOS(hunt_obj *api_proto.Hunt, client_info *services.ClientInfo) b
 // Check if we already launched it on this client. We maintain
 // a data store index of all the clients and hunts to be able
 // to quickly check if a certain hunt ran on a particular
-// client. We dont care too much how fast this is because the
+// client. We don't care too much how fast this is because the
 // hunt manager is running as an independent service and not
 // in the critical path.
 func checkHuntRanOnClient(

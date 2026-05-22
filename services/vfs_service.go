@@ -57,7 +57,7 @@ type VFSService interface {
 		components []string) (*api_proto.VFSListResponse, error)
 
 	// Lists the files in the directory as well. Enriches with
-	// download information for downloaed files. Used by the GUI's VFS
+	// download information for downloaded files. Used by the GUI's VFS
 	// file listing widget. Supports table transformations like
 	// filtering/sorting etc which can be provided with the
 	// GetTableRequest.

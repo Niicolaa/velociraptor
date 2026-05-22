@@ -18,7 +18,7 @@ import (
 
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
-	"www.velocidex.com/golang/velociraptor/vql"
+	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
 )
@@ -162,7 +162,7 @@ func readProcNet(which string, si socketInfo) ([]*ConnectionStat, error) {
 		addrType = c[1]
 	}
 
-	f, err := os.Open("/proc/net/" + which)
+	f, err := os.Open("/proc/net/" + utils.SanitizeString(which))
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,8 @@ var _Netstat = vfilter.GenericListPlugin{
 	Doc:        "Collect network information.",
 	Function:   runNetstat,
 	ArgType:    &NetstatArgs{},
-	Metadata:   vql.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
+	Metadata: vql_subsystem.VQLMetadata().Permissions(
+		acls.MACHINE_STATE).Build(),
 }
 
 func init() {

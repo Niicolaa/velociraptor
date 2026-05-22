@@ -16,6 +16,7 @@ import (
 	"github.com/hillu/go-ntdll"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/utils"
+	"www.velocidex.com/golang/velociraptor/utils/allocs"
 	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/windows"
@@ -108,7 +109,7 @@ func GetObjects(ctx context.Context,
 	}
 	defer ntdll.NtClose(dir_handle)
 
-	buffer := utils.AllocateBuff(1024 * 1024)
+	buffer := allocs.AllocateAlignedBuff(1024 * 1024)
 	length := uint32(0)
 	index := uint32(0)
 
@@ -133,9 +134,9 @@ func GetObjects(ctx context.Context,
 		}
 
 		object_directory_infos = append(object_directory_infos, item)
-
+		full_path := utils.Join(path, item.Name.String())
 		info := &WinObjDesc{
-			Name: filepath.Join(path, item.Name.String()),
+			Name: full_path,
 			Type: item.TypeName.String(),
 		}
 		descObject(scope, info)
@@ -146,14 +147,12 @@ func GetObjects(ctx context.Context,
 		}
 
 		if item.TypeName.String() == "Directory" {
-			GetObjects(ctx, scope,
-				filepath.Join(path, item.Name.String()),
-				output_chan, depth+1)
+			GetObjects(ctx, scope, full_path, output_chan, depth+1)
 		}
 	}
 }
 
-// Encrich the WinObjDesc with additional information
+// Enrich the WinObjDesc with additional information
 func descObject(scope vfilter.Scope, info *WinObjDesc) {
 	switch info.Type {
 	case "SymbolicLink":

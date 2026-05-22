@@ -22,6 +22,7 @@ import (
 
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	crypto_proto "www.velocidex.com/golang/velociraptor/crypto/proto"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/result_sets"
@@ -29,7 +30,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/utils"
 )
 
-// Filter will be applied on flows to remove those we dont care about.
+// Filter will be applied on flows to remove those we don't care about.
 func (self *Launcher) GetFlows(
 	ctx context.Context,
 	config_obj *config_proto.Config,
@@ -132,7 +133,7 @@ func (self *Launcher) CancelFlow(
 
 	// Handle server collections especially via the server artifact
 	// runner.
-	if client_id == "server" {
+	if client_id == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		server_artifacts_service, err := services.GetServerArtifactRunner(
 			config_obj)
 		if err != nil {
@@ -202,7 +203,7 @@ func (self *Launcher) CancelFlow(
 	// Queue a cancellation message to the client for this flow
 	// id.
 	cancel_msg := &crypto_proto.Cancel{}
-	if client_id == "server" {
+	if client_id == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		// Only include the principal on server messages so the
 		// server_artifacts service can log the principal. No need to
 		// forward to the client.
@@ -225,15 +226,9 @@ func (self *Launcher) CancelFlow(
 }
 
 // The collection_context contains high level stats that summarise the
-// colletion. We derive this information from the specific results of
+// collection. We derive this information from the specific results of
 // each query.
 func UpdateFlowStats(collection_context *flows_proto.ArtifactCollectorContext) {
-	// Support older colletions which do not have this info
-	if len(collection_context.QueryStats) == 0 &&
-		collection_context.InflightTime == 0 {
-		return
-	}
-
 	// Now update the overall collection statuses based on all the
 	// individual query status. The collection status is a high level
 	// overview of the entire collection.

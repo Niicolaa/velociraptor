@@ -14,7 +14,7 @@ import (
 	"www.velocidex.com/golang/vfilter/types"
 )
 
-// Delay instantiation until all registrations occured
+// Delay instantiation until all registrations occurred
 func DefaultEncOpts() *json.EncOpts {
 	// Need to return a fresh object each time because json.encode
 	// modifies the opts object.

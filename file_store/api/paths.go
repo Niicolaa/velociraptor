@@ -10,7 +10,7 @@ string which may contain arbitrary bytes - including path separators.
 Ultimately these paths need to be encoded into a filesystem backend
 which has many rules about the types of characters allowed on them. We
 therefore need to apply conversions to make the general path fit in
-the fileystem backend restrictions - this process is called
+the filesystem backend restrictions - this process is called
 Sanitization.
 
 For example consider a path like: ["a", "b/c"]

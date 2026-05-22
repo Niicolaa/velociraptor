@@ -39,7 +39,7 @@ type NannyService struct {
 	// Function that will be called when the nanny detects out of
 	// specs condition. If not specified we exit immediately.  This
 	// function will only be called once. If the exit condition occurs
-	// further OnExit2 will be called repeatadly.
+	// further OnExit2 will be called repeatedly.
 
 	// Called on First warning.
 	OnWarnings map[uint64]func()
@@ -203,10 +203,10 @@ func (self *NannyService) checkOnce(period time.Duration) {
 	self.last_check_time = reparseTime(utils.GetTime().Now())
 
 	// We should update self.last_check_time periodically
-	// so it shoud never be more than 20 sec behind this
+	// so it should never be more than 20 sec behind this
 	// check. Unless the machine just wakes up from sleep
 	// - in that case the last check time is far before
-	// this check time. In this case we cosider the check
+	// this check time. In this case we consider the check
 	// invalid and try again later.
 	if last_check_time.Add(period * 2).Before(self.last_check_time) {
 		self.Logger.Error(

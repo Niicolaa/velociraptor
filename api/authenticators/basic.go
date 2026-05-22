@@ -139,7 +139,7 @@ func (self *BasicAuthenticator) AuthenticateUserHandler(
 						user_record.Name, r.RemoteAddr)
 				}
 
-				// Return status forbidden because we dont want the user
+				// Return status forbidden because we don't want the user
 				// to reauthenticate
 				http.Error(w, err.Error(), http.StatusForbidden)
 				return

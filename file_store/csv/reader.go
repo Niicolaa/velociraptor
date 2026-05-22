@@ -3,7 +3,7 @@
 // 1. Keeps track of how many bytes in the CSV file we read. This
 //    allows us to seek to arbitrary lines. The ByteOffset member of
 //    the csv reader provides the byte offset of the last
-//    successufully read CSV line.
+//    successfully read CSV line.
 
 // 2. We do not consider a line without the terminating \n as
 //    complete. This means we do not read the last line in the file

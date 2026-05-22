@@ -47,7 +47,7 @@ import (
   transformation of the index (e.g. sorted by timestamp or filtered)
   the server will automatically rebuild the transformed index. There
   is nothing more we need to do - this is the simple case as the new
-  flow will natually fall at the end of the index (the index is sorted
+  flow will naturally fall at the end of the index (the index is sorted
   by creation time).
 
   When a flow is deleted this is more complicated:
@@ -72,7 +72,7 @@ import (
   before the house keeping thread runs the GUI will show e.g. 9 or 8
   rows in the same page when requested 10 rows, until the next
   housekeeping job fixes the index. This is considered an acceptable
-  tradeoff.
+  trade-off.
 
 */
 

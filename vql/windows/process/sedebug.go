@@ -26,7 +26,7 @@ type winTokenPriviledges struct {
 	Privileges     [1]winLUIDAndAttributes
 }
 
-// Try to grant SeDebugPrivilege to outselves so we can inspect other
+// Try to grant SeDebugPrivilege to ourselves so we can inspect other
 // processes.
 
 func TryToGrantSeDebugPrivilege() error {

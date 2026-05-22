@@ -140,7 +140,7 @@ var (
 	JitterPercent = uint32(10)
 )
 
-// Add 10%  of jitter to ensure things dont synchronize
+// Add 10%  of jitter to ensure things don't synchronize
 func Jitter(in time.Duration) time.Duration {
 	buf := make([]byte, 4)
 	_, _ = rand.Read(buf)

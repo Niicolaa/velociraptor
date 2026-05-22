@@ -16,6 +16,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/paths"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
+	"www.velocidex.com/golang/velociraptor/utils/yaml"
 	"www.velocidex.com/golang/vfilter"
 )
 
@@ -120,7 +121,7 @@ func (self *SecretsService) getSecret(
 		secret_path_manager.Secret(type_name, secret_name),
 		secret_proto)
 
-	// If we dont have the secret ourselves, but we have a delegate
+	// If we don't have the secret ourselves, but we have a delegate
 	// manager, we can call them to try and resolve the secret.
 	if self.parent != nil && utils.IsNotFound(err) {
 		return self.parent.getSecret(ctx, type_name, secret_name)
@@ -161,6 +162,19 @@ func (self *SecretsService) AddSecret(ctx context.Context,
 		_, pres := secret.Get(field)
 		if !pres {
 			secret.Set(field, "")
+		}
+	}
+
+	// Check that yaml fields are valid yaml.
+	for _, yaml_field := range secrets_definition.YamlFields {
+		tmp := make(map[string]string)
+		field_val, pres := secret.GetString(yaml_field)
+		if pres {
+			err := yaml.Unmarshal([]byte(field_val), tmp)
+			if err != nil {
+				return fmt.Errorf("Unable to verify secret for type %v: "+
+					"While verifying %v: %w", type_name, yaml_field, err)
+			}
 		}
 	}
 
@@ -347,7 +361,7 @@ func (self *SecretsService) GetSecret(ctx context.Context,
 	return nil, fmt.Errorf("Permission Denied accessing secret %v", secret_name)
 }
 
-// Returns a reducted version of the secret.
+// Returns a redacted version of the secret.
 func (self *SecretsService) GetSecretMetadata(ctx context.Context,
 	type_name, secret_name string) (*services.Secret, error) {
 

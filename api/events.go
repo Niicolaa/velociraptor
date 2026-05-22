@@ -42,7 +42,7 @@ func (self *ApiServer) PushEvents(
 
 	user_name := user_record.Name
 
-	// Now check permmissions in the org if the user is not the superuser.
+	// Now check permissions in the org if the user is not the superuser.
 	if user_name != utils.GetSuperuserName(org_config_obj) {
 		token, err := services.GetEffectivePolicy(org_config_obj, user_name)
 		if err != nil {
@@ -63,9 +63,14 @@ func (self *ApiServer) PushEvents(
 		// For regular users append the sender field so we can track
 		// where the message came from.
 		in.Jsonl = json.AppendJsonlItem(in.Jsonl, "_Sender", user_name)
+		in.Username = user_name
 
 		// Always write user events.
 		in.Write = true
+	}
+
+	if in.Username == "" {
+		in.Username = user_name
 	}
 
 	rows, err := utils.ParseJsonToDicts([]byte(in.Jsonl))
@@ -79,17 +84,22 @@ func (self *ApiServer) PushEvents(
 		return nil, Status(self.verbose, err)
 	}
 
+	journal_opts := services.JournalOptions{
+		ArtifactName: in.Artifact,
+		ClientId:     in.ClientId,
+		FlowId:       in.FlowId,
+		Username:     in.Username,
+	}
+
 	// only broadcast the events for local listeners. Minions
 	// write the events themselves, so we just need to broadcast
 	// for any server event artifacts that occur.
 	if in.Write {
 		err = journal.PushRowsToArtifact(ctx, org_config_obj,
-			rows, in.Artifact, in.ClientId, in.FlowId)
+			rows, journal_opts)
 
 	} else {
-		err = journal.Broadcast(ctx, org_config_obj,
-			rows, in.Artifact, in.ClientId, in.FlowId)
-
+		err = journal.Broadcast(ctx, org_config_obj, rows, journal_opts)
 	}
 
 	return &emptypb.Empty{}, err

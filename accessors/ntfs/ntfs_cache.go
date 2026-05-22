@@ -11,7 +11,7 @@ import (
 	"www.velocidex.com/golang/vfilter"
 )
 
-// An LRU cache of ntfs path and their directry listing. This is
+// An LRU cache of ntfs path and their directory listing. This is
 // needed in order to quickly resolve full paths for mft entries by
 // following the parent mft reference.
 

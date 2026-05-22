@@ -47,7 +47,7 @@ func (self *ClientVQLTestSuite) TestTransactions() {
 	assert.True(self.T(), len(responses) > 0)
 
 	// Should send back a standard VQLResponse into the special
-	// Server.Internal.ResumedUploads psuedo artifact.
+	// Server.Internal.ResumedUploads pseudo artifact.
 	assert.Contains(self.T(), getVQLResponse(responses), "ReplayTime")
 	assert.Contains(self.T(), getVQLResponse(responses),
 		"Server.Internal.ResumedUploads")
@@ -57,7 +57,7 @@ func (self *ClientVQLTestSuite) TestTransactions() {
 	assert.Contains(self.T(), getUploadTransaction(responses),
 		`"response":"{`)
 
-	// The response field contains a hash to signify it is complted.
+	// The response field contains a hash to signify it is completed.
 	assert.Contains(self.T(), getUploadTransaction(responses),
 		`"sha256\":\"`)
 

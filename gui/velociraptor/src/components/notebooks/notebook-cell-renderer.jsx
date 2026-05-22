@@ -418,7 +418,7 @@ export default class NotebookCellRenderer extends React.Component {
                        local_completions_lookup: {},
                       });
 
-        // Reset any inflight calls.
+        // Reset any in-flight calls.
         this.update_source.cancel();
         this.update_source = CancelToken.source();
 
@@ -495,7 +495,7 @@ export default class NotebookCellRenderer extends React.Component {
                        local_completions_lookup: {},
                       });
 
-        // Reset any inflight calls.
+        // Reset any in-flight calls.
         this.update_source.cancel();
         this.update_source = CancelToken.source();
 
@@ -903,7 +903,7 @@ export default class NotebookCellRenderer extends React.Component {
                       <Dropdown.Item
                         title="Markdown"
                         onClick={() => {
-                            // Preserve the current cell's environemnt for the new cell
+                            // Preserve the current cell's environment for the new cell
                             this.props.addCell(this.state.cell.cell_id, "Markdown", "", this.state.cell.env);
                         }}>
                         Markdown

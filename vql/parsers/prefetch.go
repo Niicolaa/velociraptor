@@ -9,7 +9,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
 	utils "www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -49,6 +48,7 @@ func (self _PrefetchPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "prefetch", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &_PrefetchPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
@@ -106,7 +106,7 @@ func (self _PrefetchPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap)
 		Name:     "prefetch",
 		Doc:      "Parses a prefetch file.",
 		ArgType:  type_map.AddType(scope, &_PrefetchPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 

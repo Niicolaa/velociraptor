@@ -14,12 +14,12 @@ import api from '../core/api-service.jsx';
 export default class URLViewer extends Component {
     static propTypes = {
         // The URL can be formatted as a markdown URL: [text](url)
-        // Alternativly an explicit description can be passed to the link.
+        // Alternatively an explicit description can be passed to the link.
         url: PropTypes.string,
         desc: PropTypes.string,
         safe: PropTypes.bool,
 
-        // If specified this is an intenral link - so we add org id
+        // If specified this is an internal link - so we add org id
         // etc.
         internal: PropTypes.bool,
     }

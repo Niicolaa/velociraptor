@@ -146,8 +146,12 @@ func doLS(path, accessor string) error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
+	if err != nil {
+		return err
+	}
 	defer sm.Close()
 
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -215,8 +219,12 @@ func doRM(path, accessor string) error {
 	defer cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
+	if err != nil {
+		return err
+	}
 	defer sm.Close()
 
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -278,8 +286,12 @@ func doCp(path, accessor string, dump_dir string) error {
 	defer cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
+	if err != nil {
+		return err
+	}
 	defer sm.Close()
 
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -383,8 +395,12 @@ func doCat(path, accessor_name string) error {
 
 	config_obj.Services = services.GenericToolServices()
 	sm, err := startup.StartToolServices(ctx, config_obj)
+	if err != nil {
+		return err
+	}
 	defer sm.Close()
 
+	config_obj, err = maybeGetOrgConfig(*org_id, config_obj)
 	if err != nil {
 		return err
 	}
@@ -449,7 +465,8 @@ func doZCat(chunk_fd, file_fd *os.File) error {
 			break
 		}
 
-		uncompressed, err := utils.Uncompress(context.Background(), compressed)
+		uncompressed, err := utils.UncompressWithLimit(
+			context.Background(), compressed, chunk.UncompressedLength)
 		if err != nil {
 			break
 		}

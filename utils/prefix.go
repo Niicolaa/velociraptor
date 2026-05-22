@@ -69,7 +69,7 @@ func (self *PrefixNode) Present(components []string) (bool, int) {
 		return self.Sentinel, self.Depth
 	}
 
-	// Depth first search to find the logest matching prefix
+	// Depth first search to find the longest matching prefix
 	match, depth := child.Present(components[1:])
 	if match {
 		return match, depth

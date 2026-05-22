@@ -109,7 +109,7 @@ func (self *NotebookManager) trimRedoVersions(
 			if len(after) > 0 {
 				available_versions = before
 
-				// Now remove the versions that occured after the
+				// Now remove the versions that occurred after the
 				// current version.
 				for _, version := range after {
 					err = self.Store.RemoveNotebookCell(ctx, config_obj,

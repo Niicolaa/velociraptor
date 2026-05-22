@@ -9,9 +9,11 @@ import (
 	"github.com/Velocidex/ordereddict"
 	errors "github.com/go-errors/errors"
 	"www.velocidex.com/golang/velociraptor/config"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/startup"
 	"www.velocidex.com/golang/velociraptor/uploads"
+	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/utils/tempfile"
 	"www.velocidex.com/golang/velociraptor/vql/acl_managers"
 )
@@ -162,12 +164,12 @@ func doCollector() error {
 	}
 
 	// Start from a clean slate
-	os.Setenv("VELOCIRAPTOR_CONFIG", "")
-	os.Setenv("VELOCIRAPTOR_LITERAL_CONFIG", "")
+	os.Setenv(constants.VELOCIRAPTOR_CONFIG, "")
+	os.Setenv(constants.VELOCIRAPTOR_LITERAL_CONFIG, "")
 
 	datastore_directory := *collector_command_datastore
 	if datastore_directory == "" {
-		datastore_directory = filepath.Join(
+		datastore_directory = utils.Join(
 			tempfile.GetTempDir(), "gui_datastore")
 
 		// Ensure the directory exists
@@ -182,8 +184,8 @@ func doCollector() error {
 		return fmt.Errorf("Unable find path: %w", err)
 	}
 
-	server_config_path := filepath.Join(datastore_directory, "server.config.yaml")
-	client_config_path := filepath.Join(datastore_directory, "client.config.yaml")
+	server_config_path := utils.Join(datastore_directory, "server.config.yaml")
+	client_config_path := utils.Join(datastore_directory, "client.config.yaml")
 
 	// Try to open the config file from there
 	config_obj, err := makeDefaultConfigLoader().
@@ -248,7 +250,7 @@ func doCollector() error {
 	}
 
 	// this is needed to ensure artifacts are fully loaded before we
-	// start so their tools are fully registred.
+	// start so their tools are fully registered.
 	query := `
 LET _ <= SELECT name FROM artifact_definitions()
 LET _ <= import(artifact="Server.Utils.CreateCollector")
@@ -287,7 +289,7 @@ SELECT * FROM if(condition=Spec.OS, then={
    )
 })
 `
-	err = runQueryWithEnv(query, builder, *collector_format)
+	err = runQueryWithEnv(ctx, query, builder, *collector_format)
 	if err != nil {
 		return err
 	}

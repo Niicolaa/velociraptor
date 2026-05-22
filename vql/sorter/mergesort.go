@@ -10,7 +10,6 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/utils/tempfile"
 	utils_tempfile "www.velocidex.com/golang/velociraptor/utils/tempfile"
 	"www.velocidex.com/golang/vfilter"
 	vsort "www.velocidex.com/golang/vfilter/sort"
@@ -200,7 +199,7 @@ func (self *MergeSorterCtx) Merge(ctx context.Context, output_chan chan types.Ro
 		}
 
 		// Consume the value from the provider with the
-		// smallers value.
+		// smallest value.
 		self.merge_files[smallest_idx].Consume()
 
 		// otherwise push the value on
@@ -298,7 +297,7 @@ func (self *dataFile) prepareFile(scope vfilter.Scope, items []vfilter.Row) {
 	go func() {
 		defer self.mu.Unlock()
 
-		tmpfile, err := tempfile.TempFile("vql")
+		tmpfile, err := utils_tempfile.TempFile("vql")
 		if err != nil {
 			scope.Log("Unable to create tempfile: %v", err)
 			return

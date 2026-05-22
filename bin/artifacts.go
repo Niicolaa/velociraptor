@@ -74,6 +74,17 @@ var (
 			"store all output in it.").
 		Default("").String()
 
+	artifact_command_collect_client_id = artifact_command_collect.Flag(
+		"client_id", "Used for remote API calls to specify the client id "+
+			"to collect from. By default this is `server` to server "+
+			"artifacts").
+		Default("server").String()
+
+	artifact_command_collect_org_id = artifact_command_collect.Flag(
+		"org_id", "Used for remote API calls to specify the org id "+
+			"(default `root`)").
+		Default("root").String()
+
 	artifact_command_collect_timeout = artifact_command_collect.Flag(
 		"timeout", "Time collection out after this many seconds.").
 		Default("0").Float64()
@@ -154,10 +165,10 @@ func doArtifactCollect() error {
 		}
 	}
 
-	config_obj, err := makeDefaultConfigLoader().
-		WithNullLoader().LoadAndValidate()
+	config_obj, err := APIConfigLoader.WithNullLoader().
+		LoadAndValidate()
 	if err != nil {
-		return fmt.Errorf("Unable to create config: %w", err)
+		return err
 	}
 
 	config_obj.Services = services.GenericToolServices()
@@ -166,11 +177,10 @@ func doArtifactCollect() error {
 	defer top_cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	manager, err := services.GetRepositoryManager(config_obj)
 	if err != nil {
@@ -227,6 +237,19 @@ func doArtifactCollect() error {
 		}
 	}
 
+	if config_obj.ApiConfig != nil && config_obj.ApiConfig.Name != "" {
+		logging.GetLogger(config_obj, &logging.ToolComponent).
+			Info("API Client configuration loaded - will make gRPC connection.")
+		return doRemoteArtifactCollection(
+			ctx, config_obj, spec,
+			*artifact_command_collect_org_id,
+			*artifact_command_collect_cpu_limit,
+			*artifact_command_collect_timeout,
+			*artifact_command_collect_client_id,
+			*artifact_command_collect_output,
+		)
+	}
+
 	logger := &LogWriter{config_obj: config_obj}
 	scope := manager.BuildScope(services.ScopeBuilder{
 		Config:     config_obj,
@@ -256,7 +279,7 @@ func doArtifactCollect() error {
 		return err
 	}
 
-	// If interrupt has occured we cancel everything and wait for any
+	// If interrupt has occurred we cancel everything and wait for any
 	// cleanups to occur. If we return too quickly from the main
 	// thread, we might leave some tempfiles behind.
 	defer func() {
@@ -329,11 +352,10 @@ func doArtifactShow() error {
 	defer cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	manager, err := services.GetRepositoryManager(config_obj)
 	if err != nil {
@@ -369,11 +391,10 @@ func doArtifactList() error {
 	defer cancel()
 
 	sm, err := startup.StartToolServices(ctx, config_obj)
-	defer sm.Close()
-
 	if err != nil {
 		return err
 	}
+	defer sm.Close()
 
 	var name_regex *regexp.Regexp
 	if *artifact_command_list_name != "" {
@@ -471,12 +492,14 @@ func doArtifactCLIHelp(
 	}
 	app.UsageForContextWithTemplate(
 		parse_context, 2, fmt.Sprintf(`
-usage: {{.App.Name}}[<common flags> ...] -r %v [<artifact params> ...]:
+usage: {{.App.Name}} [<common flags> ...] -r %v [<artifact params> ...]:
+
+%v
 
 Common Flags:
 {{with .Context.Flags|FlagsToTwoColumns}}{{FormatTwoColumnsWithIndent . 4 2}}{{end}}
 Artifact Parameters:
-`, artifact.Name))
+`, artifact.Name, artifact.Description))
 
 	for _, param := range artifact.Parameters {
 		desc := strings.TrimSpace(param.Description)

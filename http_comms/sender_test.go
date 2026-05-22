@@ -79,7 +79,7 @@ func (self *MockHTTPConnector) Post(ctx context.Context,
 		return nil, errors.New("Unavailable")
 	}
 
-	// Decreasse the wg when the message arrives.
+	// Decrease the wg when the message arrives.
 	defer self.wg.Done()
 
 	manager := crypto_test.NullCryptoManager{}

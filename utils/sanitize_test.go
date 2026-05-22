@@ -9,7 +9,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/vtesting/goldie"
 )
 
-// Sanitized strings should be prefectly reversible.
+// Sanitized strings should be perfectly reversible.
 func TestSanitize(t *testing.T) {
 	golden := ordereddict.NewDict()
 	for _, name := range []string{

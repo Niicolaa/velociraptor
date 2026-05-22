@@ -41,7 +41,7 @@ following command
 winlogbeat export template --es.version 8.11.1
 ```
 
-But the index was modfied to remove all fields with the `flattened`
+But the index was modified to remove all fields with the `flattened`
 type which is not supported in opensearch. Therefore this index
 template is fully compatible with opensearch as well.
 

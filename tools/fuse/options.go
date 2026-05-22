@@ -6,7 +6,7 @@ type Options struct {
 	// Map raw device names like \\.\C: -> C:
 	MapDeviceNamesToLetters bool
 
-	// Stip the : from the drive name C: -> C
+	// Strip the : from the drive name C: -> C
 	MapDriveNamesToLetters bool
 
 	// If TRUE, allow all path characters except / which will be

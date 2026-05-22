@@ -162,7 +162,7 @@ func (self *ApiServer) ListChildren(
 			"User is not allowed to access datastore.")
 	}
 
-	// The call can access the datastore from any org becuase it is a
+	// The call can access the datastore from any org because it is a
 	// server->server call.
 	if token.SuperUser && org_config_obj.OrgId != in.OrgId {
 		org_manager, err := services.GetOrgManager()

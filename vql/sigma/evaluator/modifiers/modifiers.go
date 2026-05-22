@@ -20,14 +20,14 @@ import (
 // ValueModifier modifies the expected values to return a modified
 // set. The modifier may be used to expand the input set (e.g. the
 // base64offset modifier will multiply the expected value to its
-// different permutations). Alternativly, the modifier may replace the
+// different permutations). Alternatively, the modifier may replace the
 // input values with rows of true or false depending on comparisons
 // with the expected set.  Modifiers are chained together with the
 // output of one feeding into the input of the next one. The overall
-// match results in the boolean truthness of the final value set.
+// match results in the boolean truthiness of the final value set.
 
-// NOTE: The design of the Sigma modifiers scheme is very inconsistant
-// and it can not be generalized to a simple modifer pipeline. Only
+// NOTE: The design of the Sigma modifiers scheme is very inconsistent
+// and it can not be generalized to a simple modifier pipeline. Only
 // some modifiers can validly follow other modifiers. See the test
 // file at sigma_test.go to check the valid set of modifier
 // combinations in their supported order. Not every combination is
@@ -43,6 +43,7 @@ var ValueModifiers = map[string]ValueModifier{
 	"windash":        windash{},
 	"base64":         b64{},
 	"base64offset":   b64offset{},
+	"expand":         expandModifier{},
 	"cidr":           AnyComparator{cidr{}},
 	"wide":           wide{},
 	"gt":             AnyComparator{gt{}},
@@ -129,7 +130,7 @@ func (startswith) Matches(
 
 type windash struct{}
 
-var cmdflagRegex = regexp.MustCompile("\\s-([a-zA-Z0-9])")
+var cmdflagRegex = regexp.MustCompile(`\s-([a-zA-Z0-9])`)
 
 func (windash) Modify(ctx context.Context, scope types.Scope,
 	value []any, expected []any) (new_value []any, new_expected []any, err error) {

@@ -4,9 +4,9 @@
   interrogation collection on an endpoint when it first appears.
 
   Velociraptor is a zero registration system - this means when a
-  client appears, it provisions its own private key and registeres its
+  client appears, it provisions its own private key and registers its
   public key with the server. This enables secure communication with
-  the endpoint but we still dont know anything about it!
+  the endpoint but we still don't know anything about it!
 
   The EnrollmentService watches for new clients and schedules the
   Generic.Client.Info artifact on the endpoint. Note that this
@@ -96,7 +96,7 @@ func (self *EnrollmentService) Start(
 	}
 
 	return journal.WatchQueueWithCB(ctx, config_obj, wg,
-		"Server.Internal.Enrollment", "InterrogationService",
+		artifacts.ENROLLMENT_QUEUE, "InterrogationService",
 		self.ProcessEnrollment)
 }
 
@@ -432,7 +432,7 @@ func (self *EnrollmentService) ProcessInterrogateResults(
 	journal.PushRowsToArtifactAsync(ctx, config_obj,
 		ordereddict.NewDict().
 			Set("ClientId", client_id),
-		"Server.Internal.Interrogation")
+		artifacts.INTERROGATION_QUEUE)
 
 	return nil
 }

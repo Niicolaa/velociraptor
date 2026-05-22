@@ -123,7 +123,7 @@ func (self *AzureClaimsGetter) GetClaims(
 	}, nil
 }
 
-// Best effort - if anything fails we just dont show the picture.
+// Best effort - if anything fails we just don't show the picture.
 func (self *AzureClaimsGetter) getAzurePicture(client *http.Client) string {
 	response, err := client.Get("https://graph.microsoft.com/v1.0/me/photos/48x48/$value")
 	if err != nil {

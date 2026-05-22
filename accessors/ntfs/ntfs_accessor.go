@@ -401,8 +401,8 @@ func (self *NTFSFileSystemAccessor) OpenWithOSPath(
 		accessor = fullpath.DelegateAccessor()
 	}
 
-	// We dont want to open a subpath of the filesystem, instead we
-	// special case this as openning the raw device.
+	// We don't want to open a subpath of the filesystem, instead we
+	// special case this as opening the raw device.
 	if len(fullpath.Components) == 0 {
 		defer Instrument("RawDevice")()
 

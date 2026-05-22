@@ -76,7 +76,7 @@ func streamEvents(
 
 	// The API service is running on the master only! This means
 	// the journal service is local.
-	output_chan, cancel := journal.Watch(
+	output_chan, cancel := journal.WatchArtifact(
 		ctx, in.Queue, "replication-"+in.WatcherName)
 	defer cancel()
 
@@ -103,7 +103,7 @@ func streamEvents(
 					replicationReceiveHistorgram.WithLabelValues("").Observe(v)
 				}))
 
-			// If we are not able to send within the sepecified 5
+			// If we are not able to send within the specified 5
 			// seconds we must abort the connection.
 
 			err = utils.DoWithTimeout(func() error {
@@ -166,7 +166,7 @@ func (self *ApiServer) WatchEvent(
 	self.wg.Add(1)
 	defer self.wg.Done()
 
-	// The call can access the datastore from any org becuase it is a
+	// The call can access the datastore from any org because it is a
 	// server->server call.
 	org_manager, err := services.GetOrgManager()
 	if err != nil {
@@ -207,11 +207,13 @@ func (self *replicationTracker) Debug() []*ordereddict.Dict {
 
 	sort.Strings(keys)
 	for _, k := range keys {
-		v, _ := self.currentReplications[k]
-		result = append(result, ordereddict.NewDict().
-			Set("Type", "Replication").
-			Set("Name", k).
-			Set("Stats", v))
+		v, ok := self.currentReplications[k]
+		if ok {
+			result = append(result, ordereddict.NewDict().
+				Set("Type", "Replication").
+				Set("Name", k).
+				Set("Stats", v))
+		}
 	}
 	return result
 }

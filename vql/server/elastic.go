@@ -4,13 +4,13 @@
 // $ goweight ./bin/
 //    15 MB github.com/elastic/go-elasticsearch/v7/esapi
 
-// We observe a 6mb increase in the binary for this dependency which
+// We observe a 16mb increase in the binary for this dependency which
 // was deemed unacceptable. Further investigation revealed the size
 // was because the API Surface is huge and the client library supports
 // it all. Since we only actually bulk upload data to elastic we do
 // not need the entire API anyway. We therefore maintain a fork of the
-// client library for now. This allows us to include it in all builds
-// with a very minimal footprint.
+// client library. This allows us to include it in all builds with a
+// very minimal footprint (approximately 200kb vs 16Mb).
 
 /*
    Velociraptor - Dig Deeper
@@ -45,7 +45,7 @@ import (
 	"sync"
 	"time"
 
-	elasticsearch "github.com/Velocidex/go-elasticsearch/v7"
+	elasticsearch "github.com/Velocidex/go-elasticsearch/v9"
 	"github.com/Velocidex/ordereddict"
 	"github.com/go-errors/errors"
 	"www.velocidex.com/golang/velociraptor/acls"
@@ -55,7 +55,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/networking"
 	vfilter "www.velocidex.com/golang/vfilter"
@@ -71,7 +70,7 @@ type _ElasticPluginArgs struct {
 	Addresses          []string            `vfilter:"optional,field=addresses,doc=A list of Elasticsearch nodes to use."`
 	Username           string              `vfilter:"optional,field=username,doc=Username for HTTP Basic Authentication."`
 	Password           string              `vfilter:"optional,field=password,doc=Password for HTTP Basic Authentication."`
-	CloudID            string              `vfilter:"optional,field=cloud_id,doc=Endpoint for the Elastic Service (https://elastic.co/cloud)."`
+	CloudID            string              `vfilter:"optional,field=cloud_id,doc=Endpoint for the [Elastic Cloud Service](https://elastic.co/cloud)."`
 	APIKey             string              `vfilter:"optional,field=api_key,doc=Base64-encoded token for authorization; if set, overrides username and password."`
 	WaitTime           int64               `vfilter:"optional,field=wait_time,doc=Batch elastic upload this long (2 sec)."`
 	PipeLine           string              `vfilter:"optional,field=pipeline,doc=Pipeline for uploads"`
@@ -229,8 +228,8 @@ func upload_rows(
 	count := int64(0)
 
 	// Batch sending to elastic: Either
-	// when we get to chuncksize or wait
-	// time whichever comes first.
+	// when we get to chunksize or wait
+	// time - whichever comes first.
 	for {
 		select {
 		case row, ok := <-row_chan:
@@ -392,7 +391,7 @@ func sanitize_index(name string) string {
 func (self _ElasticPlugin) maybeForceSecrets(
 	ctx context.Context, scope vfilter.Scope, arg *_ElasticPluginArgs) error {
 
-	// Not running on the server, secrets dont work.
+	// Not running on the server, secrets don't work.
 	config_obj, ok := vql_subsystem.GetServerConfig(scope)
 	if !ok {
 		return nil
@@ -461,8 +460,9 @@ func (self _ElasticPlugin) Info(
 	return &vfilter.PluginInfo{
 		Name:     "elastic_upload",
 		Doc:      "Upload rows to elastic.",
-		Metadata: vql.VQLMetadata().Permissions(acls.NETWORK).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.NETWORK).Build(),
 		ArgType:  type_map.AddType(scope, &_ElasticPluginArgs{}),
+		Version:  2,
 	}
 }
 

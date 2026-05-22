@@ -151,7 +151,8 @@ func (self *ResultSetTestSuite) TestResultSetUpdaterBulkJSONL() {
 	rs, err := result_sets.NewResultSetWriter(
 		self.file_store, path_manager, nil, utils.SyncCompleter, true)
 	assert.NoError(self.T(), err)
-	rs.WriteJSONL([]byte("{\"Foo\": 10}\n{\"Foo\": 20}\n{\"Foo\": 30}\n"), 3)
+	err = rs.WriteJSONL([]byte("{\"Foo\": 10}\n{\"Foo\": 20}\n{\"Foo\": 30}\n"), 3)
+	assert.NoError(self.T(), err)
 
 	// Writes may not occur until the Close()
 	rs.Close()
@@ -209,7 +210,8 @@ func (self *ResultSetTestSuite) TestResultSetUpdaterWithAppend() {
 	rs, err := result_sets.NewResultSetWriter(
 		self.file_store, path_manager, nil, utils.SyncCompleter, true)
 	assert.NoError(self.T(), err)
-	rs.WriteJSONL([]byte("{\"Foo\": 10}\n{\"Foo\": 20}\n{\"Foo\": 30}\n"), 3)
+	err = rs.WriteJSONL([]byte("{\"Foo\": 10}\n{\"Foo\": 20}\n{\"Foo\": 30}\n"), 3)
+	assert.NoError(self.T(), err)
 
 	// Writes may not occur until the Close()
 	rs.Close()
@@ -229,7 +231,8 @@ func (self *ResultSetTestSuite) TestResultSetUpdaterWithAppend() {
 		result_sets.AppendMode)
 	assert.NoError(self.T(), err)
 
-	rs.WriteJSONL([]byte("{\"Foo\": \"Additional Row\"}\n"), 3)
+	err = rs.WriteJSONL([]byte("{\"Foo\": \"Additional Row\"}\n"), 3)
+	assert.NoError(self.T(), err)
 	rs.Close()
 
 	// Reading the rows should be fine.
@@ -384,7 +387,7 @@ func (self *ResultSetTestSuite) TestResultSetWriterWriteJSONL() {
 	// WriteJSONL is supposed to optimize the write load by
 	// writing large JSON chunks into the result set. We
 	// deliberately do not want to parse it out so we just append
-	// the data to the file. However we dont know any of the row
+	// the data to the file. However we don't know any of the row
 	// indexes in the JSON blob, but we do know how many rows it
 	// is in total.
 	path_manager := paths.NewFlowPathManager(self.client_id, self.flow_id).Log()
@@ -392,7 +395,9 @@ func (self *ResultSetTestSuite) TestResultSetWriterWriteJSONL() {
 		nil, utils.SyncCompleter, result_sets.AppendMode)
 	assert.NoError(self.T(), err)
 	rs.Write(ordereddict.NewDict().Set("Foo", 1))
-	rs.WriteJSONL([]byte("{\"Foo\":2}\n{\"Foo\":3}\n"), 2)
+	err = rs.WriteJSONL([]byte("{\"Foo\":2}\n{\"Foo\":3}\n"), 2)
+	assert.NoError(self.T(), err)
+
 	rs.Close()
 
 	rs_reader, err := result_sets.NewResultSetReader(self.file_store, path_manager)
@@ -403,8 +408,11 @@ func (self *ResultSetTestSuite) TestResultSetWriterWriteJSONL() {
 
 	// Seek into the middle of the JSON blob (last row)
 	err = rs_reader.SeekToRow(2)
+	assert.NoError(self.T(), err)
+
 	rows := simple.GetAllResults(rs_reader)
 	assert.Equal(self.T(), len(rows), 1)
+
 	value, _ := rows[0].GetInt64("Foo")
 	assert.Equal(self.T(), value, int64(3))
 }

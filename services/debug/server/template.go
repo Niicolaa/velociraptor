@@ -135,6 +135,7 @@ $(document).ready(function() {
   </head>
 <body>
 <h1>Velociraptor Debug Server</h1>
+<a href="%s/debug/everything">Everything</a>
 <div class="category">Internal</div>
 <ul class="categories">
   <li><a href="%s/debug/metrics">Metrics</a></li>
@@ -202,7 +203,7 @@ func (self *debugMux) renderCategory(node *debug.CategoryTreeNode) string {
 func (self *debugMux) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	_, _ = w.Write([]byte(fmt.Sprintf(indexHeader, self.base, self.base)))
+	_, _ = w.Write([]byte(fmt.Sprintf(indexHeader, self.base, self.base, self.base)))
 	categories := debug.GetProfileTree()
 	_, _ = w.Write([]byte(self.renderCategory(categories)))
 	_, _ = w.Write([]byte(`</body></html>`))

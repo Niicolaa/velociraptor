@@ -28,7 +28,6 @@ import (
 
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/json"
-	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/vtesting/assert"
 
 	"github.com/Velocidex/ordereddict"
@@ -46,7 +45,7 @@ var pathComponentsTestFixture = []pathComponentsTestFixtureType{
 	{"foo", []_PathFilterer{
 		_LiteralComponent{"foo"},
 	}},
-	// A ** has to start at the begining of the component, otherwise
+	// A ** has to start at the beginning of the component, otherwise
 	// it is not considered a recursive component and just interpreted
 	// as a normal wild card.
 	{"foo**", []_PathFilterer{
@@ -77,7 +76,6 @@ func TestConvertToPathComponent(t *testing.T) {
 			if reflect.DeepEqual(fixture.components, components) {
 				continue
 			}
-			utils.DlvBreak()
 			t.Fatalf("Unexpected %v: %v",
 				fixture.components, components)
 		}

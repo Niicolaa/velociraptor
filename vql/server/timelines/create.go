@@ -5,9 +5,9 @@ import (
 
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/acls"
+	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/services"
 	timelines_proto "www.velocidex.com/golang/velociraptor/timelines/proto"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -81,7 +81,7 @@ func (self *AddTimelineFunction) Call(ctx context.Context,
 		for event := range arg.Query.Eval(sub_ctx, scope) {
 			select {
 			case <-ctx.Done():
-				break
+				return
 
 			case in <- event:
 			}
@@ -101,6 +101,7 @@ func (self *AddTimelineFunction) Call(ctx context.Context,
 		return vfilter.Null{}
 	}
 
+	principal := vql_subsystem.GetPrincipal(scope)
 	journal, err := services.GetJournal(config_obj)
 	if err == nil {
 		journal.PushRowsToArtifactAsync(ctx, config_obj,
@@ -110,7 +111,7 @@ func (self *AddTimelineFunction) Call(ctx context.Context,
 				Set("Action", "AddTimeline").
 				Set("Timeline", arg.Name).
 				Set("TimestampColumn", arg.Key),
-			"Server.Internal.TimelineAdd")
+			artifacts.TIMELINE_ADD.WithUser(principal))
 	}
 
 	return super
@@ -122,7 +123,8 @@ func (self AddTimelineFunction) Info(
 		Name:     "timeline_add",
 		Doc:      "Add a new query to a timeline.",
 		ArgType:  type_map.AddType(scope, &AddTimelineFunctionArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.READ_RESULTS).Build(),
+		Version:  2,
 	}
 }
 

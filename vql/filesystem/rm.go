@@ -9,7 +9,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/accessors/file"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -79,7 +78,7 @@ func RemoveFile(
 	if err != nil {
 		scope.Log("rm: Failed to remove %v: %v, reschedule", tmpfile, err)
 
-		// Add another detructor to try again a bit later.
+		// Add another destructor to try again a bit later.
 		err = scope.AddDestructor(func() {
 			RemoveFile(ctx, retry+1, tmpfile, scope)
 		})
@@ -97,10 +96,11 @@ func RemoveFile(
 func (self _RmFunction) Info(scope vfilter.Scope,
 	type_map *vfilter.TypeMap) *vfilter.FunctionInfo {
 	return &vfilter.FunctionInfo{
-		Name:     "rm",
-		Doc:      "Remove a file from the filesystem using the API.",
-		ArgType:  type_map.AddType(scope, &_RmRequest{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_WRITE).Build(),
+		Name:    "rm",
+		Doc:     "Remove a file from the filesystem using the API.",
+		ArgType: type_map.AddType(scope, &_RmRequest{}),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(
+			acls.FILESYSTEM_WRITE).Build(),
 	}
 }
 

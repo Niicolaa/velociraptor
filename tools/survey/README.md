@@ -3,7 +3,7 @@
 The aim of the wizard is to make it easy to configure Velociraptor in
 the most common deployment scenarios. Even though these scenarios will
 not be a perfect fit for everyone, most users should be able to start
-with these deploment modes and tweak the configuration to their
+with these deployment modes and tweak the configuration to their
 specific needs.
 
 Although it is possible to mix and match configurations (for example

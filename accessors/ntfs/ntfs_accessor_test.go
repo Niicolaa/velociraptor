@@ -75,7 +75,7 @@ func TestNTFSFilesystemAccessorRemapping(t *testing.T) {
 
 	// Overlay a MountFileSystemAccessor over the
 	// VirtualFilesystemAccessor. We will use Windows path
-	// convensions so it looks like a real windows system.
+	// conventions so it looks like a real windows system.
 	mount_fs := accessors.NewMountFileSystemAccessor(
 		accessors.MustNewWindowsOSPath(""), root_fs_accessor)
 

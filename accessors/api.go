@@ -24,7 +24,7 @@ import (
 // methods to arrive at the same OS Path.
 
 // For example, on Windows components are separated by the backslash
-// characted and the first component can be a device name (which may
+// character and the first component can be a device name (which may
 // contain path separators):
 
 // \\.\C:\Windows\System32 -> ["\\.\C:", "Windows", "System32"]
@@ -299,7 +299,7 @@ func (self *OSPath) MarshalYAML() (interface{}, error) {
 	json_string := []byte(self.String())
 	buf := bytes.Buffer{}
 	err := json.Indent(&buf, json_string, " ", "  ")
-	return string(buf.Bytes()), err
+	return buf.String(), err
 }
 
 // MarshalText is used by the YAML marshaller. We indent the text to

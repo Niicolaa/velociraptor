@@ -61,7 +61,7 @@ Tool definitions may contain a version string. This should be a
 semantic version that identifies the tool version. The combination of
 tool name + tool version uniquely identifies a tool. In other words,
 Velociraptor treats the combination of Tool Name and Tool Version as
-the indentifier for the tool.
+the identifier for the tool.
 
 It is possible for multiple versions to co-exist within the
 Inventory. Support the tool "X" has two versions, v1 and v2 and it is

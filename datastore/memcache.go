@@ -127,7 +127,7 @@ func (self *DirectoryMetadata) Debug() string {
 }
 
 // An indication of how many bytes the entry is taking - for now use
-// the length of the path as a proxy for the full size so we dont need
+// the length of the path as a proxy for the full size so we don't need
 // to calculate too much.
 func (self *DirectoryMetadata) Bytes() int {
 	self.mu.Lock()
@@ -146,7 +146,7 @@ func (self *DirectoryMetadata) Set(urn api.DSPathSpec) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	// If we are full, next read will come from disk anyway so we dont
+	// If we are full, next read will come from disk anyway so we don't
 	// bother.
 	if self.full {
 		return
@@ -298,7 +298,7 @@ type MemcacheDatastore struct {
 
 	// Gets the relevant DirectoryMetadata for the URN. This function
 	// can be overriden in order to perform book keeping on
-	// itermediate DirectoryMetadata objects.  If it returns
+	// intermediate DirectoryMetadata objects.  If it returns
 	// errorNoDirectoryMetadata then we skip updating the metadata.
 	get_dir_metadata func(
 		dir_cache *DirectoryLRUCache,
@@ -564,7 +564,7 @@ func (self *MemcacheDatastore) SetChildren(
 		md = self.dir_cache.NewDirectoryMetadata(path)
 	}
 
-	// If the directory is full we dont add new children to it.
+	// If the directory is full we don't add new children to it.
 	if md.IsFull() {
 		return
 	}
@@ -596,9 +596,7 @@ func (self *MemcacheDatastore) ListChildren(
 	}
 
 	result := make([]api.DSPathSpec, 0, md.Len())
-	for _, v := range md.Items() {
-		result = append(result, v)
-	}
+	result = append(result, md.Items()...)
 
 	return result, nil
 }
@@ -670,9 +668,9 @@ func (self *MemcacheDatastore) Dump() []api.DSPathSpec {
 	result := make([]api.DSPathSpec, 0)
 
 	for _, key := range self.dir_cache.GetKeys() {
-		md, _ := self.dir_cache.Get(key)
-		for _, spec := range md.Items() {
-			result = append(result, spec)
+		md, ok := self.dir_cache.Get(key)
+		if ok {
+			result = append(result, md.Items()...)
 		}
 	}
 	return result

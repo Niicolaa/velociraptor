@@ -31,7 +31,7 @@ func (self *UserManagerTestSuite) TestDeleteUser() {
 	assert.NoError(self.T(), err)
 
 	// Yes user is gone.
-	user_record, err = users_manager.GetUser(self.Ctx, "OrgAdmin", "UserO1")
+	_, err = users_manager.GetUser(self.Ctx, "OrgAdmin", "UserO1")
 	assert.ErrorContains(self.T(), err, "User not found")
 
 	// UserO2 belongs in both O1 and O2
@@ -59,14 +59,14 @@ func (self *UserManagerTestSuite) TestDeleteUser() {
 	golden.Set("AdminO2 UserO2 is in O2", user_record)
 
 	// AdminO2 will remove the user from all orgs, but they remain in
-	// O1 because AdminO2 has no accesss to O1
+	// O1 because AdminO2 has no access to O1
 	err = users_manager.DeleteUser(
 		self.Ctx, "AdminO2", "UserO2", services.LIST_ALL_ORGS)
 	assert.NoError(self.T(), err)
 
 	// GetUser returns PermissionDenied if the user requesting does
 	// not have OrgAdmin and does not belong to any of the same orgs
-	user_record, err = users_manager.GetUser(self.Ctx, "AdminO2", "UserO2")
+	_, err = users_manager.GetUser(self.Ctx, "AdminO2", "UserO2")
 	assert.ErrorContains(self.T(), err, "PermissionDenied")
 	golden.Set("AdminO2 UserO2 removed from O2", err.Error())
 

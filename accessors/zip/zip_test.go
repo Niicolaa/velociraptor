@@ -2,7 +2,7 @@ package zip
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -129,7 +129,7 @@ func (self *ZipTestSuite) TestCachedZip() {
 
 	snapshot := vtesting.GetMetrics(self.T(), "accessor_zip_")
 
-	// Read some non existant files to check that we close everything
+	// Read some non-existent files to check that we close everything
 	// on error paths.
 	rows, err := test_utils.RunQuery(self.ConfigObj, `
 LET ZIP_FILE_CACHE_SIZE <= 30
@@ -156,7 +156,7 @@ j={ SELECT read_file(accessor="zip", filename=PathSpec) AS Data FROM scope() }
 		assert.Equal(self.T(), "hello1\n", data)
 	}
 
-	// Make sure we dont have any dangling references
+	// Make sure we don't have any dangling references
 	state := vtesting.GetMetricsDifference(self.T(), "accessor_zip_", snapshot)
 
 	// Scope is closed - no zip handles are leaking.
@@ -202,7 +202,7 @@ func (self *ZipTestSuite) TestCachedZipWithCacheTrim() {
 
 	snapshot := vtesting.GetMetrics(self.T(), "accessor_zip_")
 
-	// Read some non existant files to check that we close everything
+	// Read some non-existent files to check that we close everything
 	// on error paths. Make the zip cache size very small to ensure we
 	// close all files as we go along..
 	rows, err := test_utils.RunQuery(self.ConfigObj, `
@@ -229,7 +229,7 @@ j={ SELECT read_file(accessor="zip", filename=PathSpec10) AS Data, PathSpec10 FR
 		assert.Equal(self.T(), "hello1\n", data, "Failed reading %v", rows[i])
 	}
 
-	// Make sure we dont have any dangling references
+	// Make sure we don't have any dangling references
 	state := vtesting.GetMetricsDifference(self.T(), "accessor_zip_", snapshot)
 
 	// Scope is closed - no zip handles are leaking.
@@ -272,7 +272,7 @@ func (self *ZipTestSuite) TestNoCaseZip() {
 		Path:             "HeLLo1.TxT",
 	}
 
-	// Read some non existant files to check that we close everything
+	// Read some non-existent files to check that we close everything
 	// on error paths.
 	rows, err := test_utils.RunQuery(self.ConfigObj, `
 LET ZIP_FILE_CACHE_SIZE <= 30
@@ -310,7 +310,7 @@ func (self *ZipTestSuite) TestPermissions() {
 	assert.NoError(self.T(), err)
 	defer fd.Close()
 
-	data, err := ioutil.ReadAll(fd)
+	data, err := io.ReadAll(fd)
 	assert.NoError(self.T(), err)
 
 	zip_scope_pathspec := &accessors.PathSpec{

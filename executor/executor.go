@@ -60,7 +60,7 @@ type Executor interface {
 	Nanny() *NannyService
 }
 
-// A concerete implementation of a client executor.
+// A concrete implementation of a client executor.
 
 type ClientExecutor struct {
 	client_id string
@@ -246,7 +246,7 @@ func NewClientExecutor(
 				// The server sets both VQLClientAction and
 				// FlowRequest members on some messages for backwards
 				// compatibility. We strip the old VQLClientAction
-				// because we dont use it.
+				// because we don't use it.
 
 				// This message has VQLClientAction and no FlowRequest
 				// - we can not use it - it is for the old clients.

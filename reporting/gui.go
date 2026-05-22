@@ -177,7 +177,7 @@ func (self *GuiTemplateEngine) Import(artifact, name string) interface{} {
 	for _, report := range definition.Reports {
 		if report.Name == name {
 			// We parse the template for new definitions,
-			// we dont actually care about the output.
+			// we don't actually care about the output.
 			_, err := self.tmpl.Parse(SanitizeGoTemplates(report.Template))
 			if err != nil {
 				self.Error("Template Erorr: %v", err)
@@ -588,7 +588,8 @@ func NewGuiTemplateEngine(
 
 	// Write logs to this result set.
 	log_writer, err := newNotebookCellLogger(ctx,
-		config_obj, notebook_cell_path_manager.Logs())
+		config_obj, notebook_cell_path_manager.Logs(),
+		base_engine.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -617,7 +618,22 @@ func NewGuiTemplateEngine(
 			"Render":       template_engine.renderFunction,
 			"Expand":       template_engine.Expand,
 			"import":       template_engine.Import,
-			"str":          utils.ToString,
+			"bool": func(value interface{}) bool {
+				return scope.Bool(value)
+			},
+			"lt": func(x, y interface{}) bool {
+				return scope.Lt(x, y)
+			},
+			"gt": func(x, y interface{}) bool {
+				return scope.Gt(x, y)
+			},
+			"eq": func(x, y interface{}) bool {
+				return scope.Eq(x, y)
+			},
+			"not": func(x interface{}) bool {
+				return !scope.Bool(x)
+			},
+			"str": utils.ToString,
 
 			// Remove sprig's functions
 			"env": func() string {

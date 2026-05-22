@@ -9,9 +9,9 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/file_store/path_specs"
 	"www.velocidex.com/golang/velociraptor/file_store/test_utils"
-	"www.velocidex.com/golang/velociraptor/flows/proto"
 	flows_proto "www.velocidex.com/golang/velociraptor/flows/proto"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
@@ -109,7 +109,7 @@ func (self *TestSuite) TestCreateAndImportCollection() {
 
 	ctx := self.Ctx
 	scope := manager.BuildScope(builder)
-	client_id := "server"
+	client_id := constants.VELOCIRAPTOR_SERVER_CLIENT_ID
 
 	flow_id, err := launcher.ScheduleArtifactCollection(self.Ctx, self.ConfigObj,
 		acl_manager, repository, &flows_proto.ArtifactCollectorArgs{
@@ -123,7 +123,7 @@ func (self *TestSuite) TestCreateAndImportCollection() {
 	vtesting.WaitUntil(time.Second*5, self.T(), func() bool {
 		flow, err := launcher.GetFlowDetails(
 			self.Ctx, self.ConfigObj, services.GetFlowOptions{},
-			"server", flow_id)
+			constants.VELOCIRAPTOR_SERVER_CLIENT_ID, flow_id)
 		assert.NoError(self.T(), err)
 
 		return flow.Context.State == flows_proto.ArtifactCollectorContext_FINISHED
@@ -147,7 +147,7 @@ func (self *TestSuite) TestCreateAndImportCollection() {
 		Set("Original Flow", self.snapshotHuntFlow())
 
 	// Now delete the old flow
-	for _ = range (&flows.DeleteFlowPlugin{}).Call(ctx, scope,
+	for range (&flows.DeleteFlowPlugin{}).Call(ctx, scope,
 		ordereddict.NewDict().
 			Set("client_id", client_id).
 			Set("flow_id", flow_id).
@@ -172,7 +172,7 @@ func (self *TestSuite) TestCreateAndImportCollection() {
 }
 
 func (self *TestSuite) TestImportCollectionFromFixture() {
-	self.CreateFlow("server", "F.1234")
+	self.CreateFlow(constants.VELOCIRAPTOR_SERVER_CLIENT_ID, "F.1234")
 	defer utils.SetFlowIdForTests("F.1234")()
 
 	manager, _ := services.GetRepositoryManager(self.ConfigObj)
@@ -203,11 +203,11 @@ func (self *TestSuite) TestImportCollectionFromFixture() {
 		ordereddict.NewDict().
 			Set("client_id", "auto").
 
-			// This will be ingnored as the new client will be added
+			// This will be ignored as the new client will be added
 			// with the TestHost hostname in the host.json file.
 			Set("hostname", "MyNewHost").
 			Set("filename", import_file_path))
-	context, ok := result.(*proto.ArtifactCollectorContext)
+	context, ok := result.(*flows_proto.ArtifactCollectorContext)
 	assert.True(self.T(), ok)
 
 	// Check the import was successful.
@@ -240,7 +240,7 @@ func (self *TestSuite) TestImportCollectionFromFixture() {
 			Set("client_id", "auto").
 			Set("hostname", "MyNewHost").
 			Set("filename", import_file_path))
-	context2, ok := result2.(*proto.ArtifactCollectorContext)
+	context2, ok := result2.(*flows_proto.ArtifactCollectorContext)
 	assert.True(self.T(), ok)
 
 	// The new flow was created on the same client id as before.
@@ -253,7 +253,7 @@ func (self *TestSuite) TestImportCollectionFromFixture() {
 		ordereddict.NewDict().
 			Set("client_id", spec_client_id).
 			Set("filename", import_file_path))
-	context3, ok := result3.(*proto.ArtifactCollectorContext)
+	context3, ok := result3.(*flows_proto.ArtifactCollectorContext)
 	assert.True(self.T(), ok)
 
 	assert.Equal(self.T(), context3.ClientId, spec_client_id)
@@ -292,7 +292,7 @@ func (self *TestSuite) TestImportX509CollectionFromFixture() {
 			Set("client_id", "auto").
 			Set("hostname", "MyNewHost").
 			Set("filename", import_file_path))
-	context, ok := result.(*proto.ArtifactCollectorContext)
+	context, ok := result.(*flows_proto.ArtifactCollectorContext)
 	assert.True(self.T(), ok)
 
 	assert.Equal(self.T(), []string{"Demo.Plugins.GUI"},
@@ -300,6 +300,53 @@ func (self *TestSuite) TestImportX509CollectionFromFixture() {
 	assert.Equal(self.T(), uint64(1), context.TotalCollectedRows)
 	assert.Equal(self.T(), flows_proto.ArtifactCollectorContext_FINISHED,
 		context.State)
+}
+
+func (self *TestSuite) TestImportCollectionInvalidClientID() {
+	self.CreateFlow(constants.VELOCIRAPTOR_SERVER_CLIENT_ID, "F.1234")
+	defer utils.SetFlowIdForTests("F.1234")()
+
+	manager, _ := services.GetRepositoryManager(self.ConfigObj)
+	repository, _ := manager.GetGlobalRepository(self.ConfigObj)
+	_, err := repository.LoadYaml(CustomTestArtifactDependent,
+		services.ArtifactOptions{
+			ValidateArtifact:  true,
+			ArtifactIsBuiltIn: true})
+
+	assert.NoError(self.T(), err)
+
+	builder := services.ScopeBuilder{
+		Config:     self.ConfigObj,
+		ACLManager: acl_managers.NullACLManager{},
+		Logger:     logging.NewPlainLogger(self.ConfigObj, &logging.FrontendComponent),
+		Env:        ordereddict.NewDict(),
+	}
+
+	ctx := self.Ctx
+	scope := manager.BuildScope(builder)
+
+	// This file contains an client_info.json file with the real client's
+	// HostID and Hostname.
+	import_file_path, err := filepath.Abs("fixtures/import.zip")
+	assert.NoError(self.T(), err)
+
+	new_client_id := "foobar_invalid_clientid"
+
+	result := collector.ImportCollectionFunction{}.Call(ctx, scope,
+		ordereddict.NewDict().
+			Set("client_id", new_client_id).
+
+			// This will be ignored as the new client will be added
+			// with the TestHost hostname in the host.json file.
+			Set("hostname", "MyNewHost").
+			Set("filename", import_file_path))
+	assert.True(self.T(), utils.IsNil(result))
+
+	// Check that no data is actually written
+	path := "/clients/" + new_client_id + "/collections/F.1234/uploads.json"
+	_, pres := test_utils.GetMemoryFileStore(
+		self.T(), self.ConfigObj).Get(path)
+	assert.False(self.T(), pres)
 }
 
 func (self *TestSuite) getData(

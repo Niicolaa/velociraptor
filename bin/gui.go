@@ -11,12 +11,14 @@ import (
 	proto "google.golang.org/protobuf/proto"
 	"www.velocidex.com/golang/velociraptor/config"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	logging "www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/services"
 	"www.velocidex.com/golang/velociraptor/services/users"
 	"www.velocidex.com/golang/velociraptor/services/writeback"
 	"www.velocidex.com/golang/velociraptor/startup"
 	vsurvey "www.velocidex.com/golang/velociraptor/tools/survey"
+	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/utils/tempfile"
 )
 
@@ -57,7 +59,7 @@ func generateGUIConfig(datastore_directory, server_config_path, client_config_pa
 	config_obj.Client.ServerUrls = []string{"wss://localhost:8000/"}
 	config_obj.Client.UseSelfSignedSsl = true
 
-	write_back := filepath.Join(datastore_directory, "Velociraptor.writeback.%NONCE%.yaml")
+	write_back := utils.Join(datastore_directory, "Velociraptor.writeback.%NONCE%.yaml")
 	config_obj.Client.WritebackWindows = write_back
 	config_obj.Client.WritebackLinux = write_back
 	config_obj.Client.WritebackDarwin = write_back
@@ -70,7 +72,7 @@ func generateGUIConfig(datastore_directory, server_config_path, client_config_pa
 	config_obj.Client.LocalBuffer.FilenameDarwin = ""
 
 	// Make the client use the datastore_directory for tempfiles as well.
-	tmpdir := filepath.Join(datastore_directory, "temp")
+	tmpdir := utils.Join(datastore_directory, "temp")
 	err = os.MkdirAll(tmpdir, 0700)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create temp directory: %w", err)
@@ -162,13 +164,12 @@ func generateGUIConfig(datastore_directory, server_config_path, client_config_pa
 
 func doGUI() error {
 	// Start from a clean slate
-	os.Setenv("VELOCIRAPTOR_CONFIG", "")
-	os.Setenv("VELOCIRAPTOR_LITERAL_CONFIG", "")
+	os.Setenv(constants.VELOCIRAPTOR_CONFIG, "")
+	os.Setenv(constants.VELOCIRAPTOR_LITERAL_CONFIG, "")
 
 	datastore_directory := *gui_command_datastore
 	if datastore_directory == "" {
-		datastore_directory = filepath.Join(
-			tempfile.GetTempDir(), "gui_datastore")
+		datastore_directory = utils.Join(tempfile.GetTempDir(), "gui_datastore")
 		// Ensure the directory exists
 		err := os.MkdirAll(datastore_directory, 0o777)
 		if err != nil {
@@ -181,8 +182,8 @@ func doGUI() error {
 		return fmt.Errorf("Unable find path: %w", err)
 	}
 
-	server_config_path := filepath.Join(datastore_directory, "server.config.yaml")
-	client_config_path := filepath.Join(datastore_directory, "client.config.yaml")
+	server_config_path := utils.Join(datastore_directory, "server.config.yaml")
+	client_config_path := utils.Join(datastore_directory, "client.config.yaml")
 
 	// Try to open the config file from there
 	config_obj, err := makeDefaultConfigLoader().

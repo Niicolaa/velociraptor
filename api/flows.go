@@ -9,7 +9,7 @@ import (
 	api_proto "www.velocidex.com/golang/velociraptor/api/proto"
 	"www.velocidex.com/golang/velociraptor/api/tables"
 	artifacts_proto "www.velocidex.com/golang/velociraptor/artifacts/proto"
-	"www.velocidex.com/golang/velociraptor/json"
+	"www.velocidex.com/golang/velociraptor/constants"
 	vjson "www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/services"
 )
@@ -28,7 +28,7 @@ func (self *ApiServer) CancelFlow(
 	principal := user_record.Name
 
 	permissions := acls.COLLECT_CLIENT
-	if in.ClientId == "server" {
+	if in.ClientId == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		permissions = acls.COLLECT_SERVER
 	}
 
@@ -73,7 +73,7 @@ func (self *ApiServer) ResumeFlow(
 	principal := user_record.Name
 
 	permissions := acls.COLLECT_CLIENT
-	if in.ClientId == "server" {
+	if in.ClientId == constants.VELOCIRAPTOR_SERVER_CLIENT_ID {
 		permissions = acls.COLLECT_SERVER
 	}
 
@@ -183,12 +183,12 @@ func (self *ApiServer) GetClientFlows(
 			flow.Request.Creator,
 			flow.TotalUploadedBytes,
 			flow.TotalCollectedRows,
-			json.ConvertProtoToOrderedDict(flow),
+			vjson.ConvertProtoToOrderedDict(flow),
 			flow.Request.Urgent,
 			flow.ArtifactsWithResults,
 		}
 		opts := vjson.DefaultEncOpts()
-		serialized, err := json.MarshalWithOptions(row_data, opts)
+		serialized, err := vjson.MarshalWithOptions(row_data, opts)
 		if err != nil {
 			continue
 		}

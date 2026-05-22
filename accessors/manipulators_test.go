@@ -49,7 +49,7 @@ var linux_testcases = []testcase{
 	// one filename. They should also be serialized as a single file.
 	{"/bin/file\\1.txt", []string{"bin", "file\\1.txt"}, "/bin/file\\1.txt"},
 
-	// Ignore and dont support directory traversal at all
+	// Ignore and don't support directory traversal at all
 	{"/bin/../../../.././../../ls", []string{"bin", "ls"}, "/bin/ls"},
 
 	// Can accept paths in pathspec format
@@ -79,7 +79,7 @@ var windows_testcases = []testcase{
 	// the current directory (e.g. dir C: vs dir C:\ )
 	{"C:", []string{"C:"}, "C:"},
 
-	// Ignore and dont support directory traversal at all
+	// Ignore and don't support directory traversal at all
 	{"C:\\Windows\\System32\\..\\..\\..\\..\\ls",
 		[]string{"C:", "Windows", "System32", "ls"},
 		"C:\\Windows\\System32\\ls"},

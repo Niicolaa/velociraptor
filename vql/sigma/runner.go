@@ -82,8 +82,8 @@ func (self *SigmaExecutionContext) Start(
 
 		row_dict := toDict(subscope, row)
 
-		// Evalute the row with all relevant
-		// rules. Correlations are evaluted inline because
+		// Evaluate the row with all relevant
+		// rules. Correlations are evaluated inline because
 		// they need to be ordered.
 		if len(self.correlations) > 0 {
 			pool.RunInline(self, ctx, subscope,

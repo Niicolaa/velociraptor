@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	VERSION = "0.76.1-rc1"
+	VERSION = "0.76.5"
 
 	// This is the version of dependent client binaries that will be
 	// included in the offline collector or MSI. Usually this will be
@@ -51,7 +51,7 @@ const (
 	MAX_MEMORY    = 50 * 1024 * 1024
 	MAX_POST_SIZE = 5 * 1024 * 1024
 
-	// Messages to the client which we dont care about their responses.
+	// Messages to the client which we don't care about their responses.
 	IgnoreResponseState = uint64(101)
 
 	USER_AGENT = "Velociraptor"
@@ -102,10 +102,13 @@ const (
 	HASH_MAX_SIZE   = "HASH_MAX_SIZE"
 	BUFFER_MAX_SIZE = "BUFFER_MAX_SIZE"
 
-	RAW_REG_CACHE_SIZE  = "RAW_REG_CACHE_SIZE"
-	RAW_REG_CACHE_TIME  = "RAW_REG_CACHE_TIME"
-	BINARY_CACHE_SIZE   = "BINARY_CACHE_SIZE"
+	RAW_REG_CACHE_SIZE = "RAW_REG_CACHE_SIZE"
+	RAW_REG_CACHE_TIME = "RAW_REG_CACHE_TIME"
+	BINARY_CACHE_SIZE  = "BINARY_CACHE_SIZE"
+
 	EVTX_FREQUENCY      = "EVTX_FREQUENCY"
+	EVTX_PREFERRED_LANG = "EVTX_PREFERRED_LANG"
+
 	USN_FREQUENCY       = "USN_FREQUENCY"
 	ZIP_FILE_CACHE_SIZE = "ZIP_FILE_CACHE_SIZE"
 
@@ -133,7 +136,7 @@ const (
 	// Used by the overlay accessor to configure delegates'
 	OVERLAY_ACCESSOR_DELEGATES = "OVERLAY_ACCESSOR_DELEGATES"
 
-	// VQL tries to balance memory/cpu tradeoffs and also place limits
+	// VQL tries to balance memory/cpu trade-offs and also place limits
 	// on memory use. These parameters control this behavior. You can
 	// set them in the VQL environment to influence how the engine
 	// optimizes the queries.
@@ -201,6 +204,7 @@ const (
 	HTTP_SECRETS    = "HTTP Secrets"
 	SPLUNK_CREDS    = "Splunk Creds"
 	ELASTIC_CREDS   = "Elastic Creds"
+	ADX_CREDS       = "ADX Creds"
 	SMTP_CREDS      = "SMTP Creds"
 	EXECVE_SECRET   = "Execve Secrets"
 
@@ -209,10 +213,7 @@ const (
 	TIMELINE_DEFAULT_KEY     = "Timestamp"
 	TIMELINE_DEFAULT_MESSAGE = "Message"
 
-	// Environment variables
-	VELOCIRAPTOR_CONFIG         = "VELOCIRAPTOR_CONFIG"
-	VELOCIRAPTOR_LITERAL_CONFIG = "VELOCIRAPTOR_LITERAL_CONFIG"
-	VELOCIRAPTOR_API_CONFIG     = "VELOCIRAPTOR_API_CONFIG"
+	VELOCIRAPTOR_SERVER_CLIENT_ID = "server"
 )
 
 type key int

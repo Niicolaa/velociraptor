@@ -23,6 +23,7 @@ import T from '../i8n/i8n.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { withRouter }  from "react-router-dom";
 import ToolTip from '../widgets/tooltip.jsx';
+import {getItem, setItem, schema} from '../core/storage.jsx';
 
 import SplitPane from 'react-split-pane';
 
@@ -92,6 +93,8 @@ class ArtifactInspector extends React.Component {
         history: PropTypes.object,
     };
 
+    searchInput = React.createRef();
+
     state = {
         selectedDescriptor: undefined,
         multiSelectedDescriptors: [],
@@ -125,7 +128,10 @@ class ArtifactInspector extends React.Component {
 
     componentDidMount = () => {
         this.source = CancelToken.source();
-        this.searchInput.focus();
+        if(this.searchInput && this.searchInput.current) {
+            this.searchInput.current.focus();
+        }
+
         let artifact_name = this.props.match && this.props.match.params &&
             this.props.match.params.artifact;
 
@@ -136,7 +142,7 @@ class ArtifactInspector extends React.Component {
 
         // If we get here the url contains the artifact name, we
         // therefore have to allow all types of artifacts because we
-        // dont know which type the artifact is
+        // don't know which type the artifact is
         this.setState({selectedDescriptor: {name: artifact_name},
                        preset_filter: "",
                        current_filter: artifact_name});
@@ -151,6 +157,7 @@ class ArtifactInspector extends React.Component {
 
     componentWillUnmount() {
         this.source.cancel();
+        this.searchInput = null;
     }
 
     updateSearch = (value) => {
@@ -232,6 +239,8 @@ class ArtifactInspector extends React.Component {
             fullSelectedDescriptor: {},
             version: this.state.version+1,
         });
+
+        setItem(schema.CurrentSelectedArtifactKey, row.name);
         this.props.history.push("/artifacts/" + row.name);
         e.preventDefault();
         e.stopPropagation();
@@ -500,12 +509,12 @@ class ArtifactInspector extends React.Component {
                   <InputGroup>
                     { this.renderFilter() }
                     <Form.Control className="artifact-search-input"
-                                 ref={(input) => { this.searchInput = input; }}
-                                 value={this.state.current_filter}
-                                 onChange={(e) => this.updateSearch(
-                                     e.currentTarget.value)}
-                                 placeholder={T("Search for artifact")}
-                                 spellCheck="false"
+                                  ref={this.searchInput}
+                                  value={this.state.current_filter}
+                                  onChange={(e) => this.updateSearch(
+                                      e.currentTarget.value)}
+                                  placeholder={T("Search for artifact")}
+                                  spellCheck="false"
                     />
                     <ToolTip tooltip={T("Clear")}  >
                       <Button onClick={()=>this.updateSearch("")}
@@ -520,6 +529,10 @@ class ArtifactInspector extends React.Component {
               <div className="artifact-search-panel">
                 <SplitPane
                   split="vertical"
+                  onChange={size=>{
+                      setItem(schema.ArtifactSplitKey, size + "px");
+                  }}
+                  size={getItem(schema.ArtifactSplitKey) || "70%"}
                   defaultSize="70%">
                   <div className="artifact-search-report">
                     { this.state.selectedDescriptor ?

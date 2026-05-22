@@ -22,6 +22,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/paths"
+	"www.velocidex.com/golang/velociraptor/paths/artifact_modes"
 	"www.velocidex.com/golang/velociraptor/paths/artifacts"
 	"www.velocidex.com/golang/velociraptor/reporting"
 	"www.velocidex.com/golang/velociraptor/result_sets"
@@ -29,7 +30,6 @@ import (
 	"www.velocidex.com/golang/velociraptor/uploads"
 	"www.velocidex.com/golang/velociraptor/utils"
 	"www.velocidex.com/golang/velociraptor/utils/files"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
 	"www.velocidex.com/golang/vfilter/arg_parser"
@@ -118,7 +118,8 @@ func (self CreateFlowDownload) Info(scope vfilter.Scope, type_map *vfilter.TypeM
 		Name:     "create_flow_download",
 		Doc:      "Creates a download pack for the flow.",
 		ArgType:  type_map.AddType(scope, &CreateFlowDownloadArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.PREPARE_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.PREPARE_RESULTS).Build(),
+		Version:  2,
 	}
 }
 
@@ -186,7 +187,8 @@ func (self CreateHuntDownload) Info(scope vfilter.Scope, type_map *vfilter.TypeM
 		Name:     "create_hunt_download",
 		Doc:      "Creates a download pack for a hunt.",
 		ArgType:  type_map.AddType(scope, &CreateHuntDownloadArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.PREPARE_RESULTS).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.PREPARE_RESULTS).Build(),
+		Version:  2,
 	}
 }
 
@@ -248,7 +250,7 @@ func createDownloadFile(
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	// Write the bulk of the data asyncronously.
+	// Write the bulk of the data asynchronously.
 	go func() {
 		defer wg.Done()
 
@@ -313,7 +315,7 @@ func downloadFlowToZip(
 		return err
 	}
 
-	// If we dont know anything this client, at least add an empty
+	// If we don't know anything this client, at least add an empty
 	// record so the flow is recognized by the importer.
 	client_info, err := client_info_manager.Get(ctx, client_id)
 	if err != nil {
@@ -430,7 +432,7 @@ func copyUploadFiles(
 			// Ensure we store index files into the correct place.
 			file_type, _ := row.GetString("Type")
 			if file_type == "idx" {
-				// If we expand the files we dont need any indexes
+				// If we expand the files we don't need any indexes
 				if expand_sparse {
 					continue
 				}
@@ -439,7 +441,7 @@ func copyUploadFiles(
 			var src api.FSPathSpec
 
 			// We need to figure out where to store the file inside
-			// the zip container. This depends on the the file's
+			// the zip container. This depends on the file's
 			// original path on the endpoint. Since the client's
 			// original path may have characters that need escaping we
 			// need to build a `dest` pathspec that will be expanded
@@ -790,7 +792,7 @@ func createHuntDownloadFile(
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	// Write the bulk of the data asyncronously.
+	// Write the bulk of the data asynchronously.
 	go func() {
 		defer wg.Done()
 
@@ -935,7 +937,7 @@ func generateCombinedResults(
 
 			path_manager := artifacts.NewArtifactPathManagerWithMode(
 				config_obj, client_id, flow_id, artifact_source,
-				paths.MODE_CLIENT)
+				artifact_modes.MODE_CLIENT)
 
 			reader, err := result_sets.NewResultSetReader(
 				file_store_factory, path_manager.Path())

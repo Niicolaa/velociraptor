@@ -18,7 +18,7 @@
 
   The filesystem is the ultimate source of truth for the cache.
 
-  1. ListChildren of an uncached directory: Deledate to the
+  1. ListChildren of an uncached directory: Delegate to the
      FileBaseDataStore and cache the results.
 
   2. SetData of a data file (e.g. /a/b/c.json.db):
@@ -519,7 +519,7 @@ func (self *MemcacheFileDataStore) ListChildren(
 	config_obj *config_proto.Config,
 	urn api.DSPathSpec) ([]api.DSPathSpec, error) {
 
-	// No locking here!  This function encompases the fast memcache
+	// No locking here!  This function encompasses the fast memcache
 	// **and** the slow filesystem. Locking here will deadlock on the
 	// slow filesystem.
 
@@ -626,7 +626,7 @@ func get_file_dir_metadata(
 	// Check if the top level directory contains metadata.
 	path := AsDatastoreDirectory(db, config_obj, urn)
 
-	// Fast path - the directory exists in the cache. NOTE: We dont
+	// Fast path - the directory exists in the cache. NOTE: We don't
 	// need to maintain the directories on the filesystem as the
 	// FileBaseDataStore already does this. If DirectoryMetadata
 	// exists in the cache then it must reflect the current state of
@@ -637,7 +637,7 @@ func get_file_dir_metadata(
 	}
 
 	// We have no cached metadata object. We can create one but this
-	// will just cause more filesystem activity because we dont know
+	// will just cause more filesystem activity because we don't know
 	// what files exist in order to construct a new DirectoryMetadata.
 	// Since DirectoryMetadata caches are only used for ListChildren()
 	// calls, there is no point us filling the metadata in advance of
@@ -710,7 +710,7 @@ func StartMemcacheFileService(
 
 	memcache_file_db, ok := db.(*MemcacheFileDataStore)
 	if !ok {
-		// If it not a MemcacheFileDataStore so we dont need to do
+		// If it not a MemcacheFileDataStore so we don't need to do
 		// anything to it.
 		return nil
 	}

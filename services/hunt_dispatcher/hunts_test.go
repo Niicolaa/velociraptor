@@ -96,7 +96,7 @@ sources:
 	assert.Equal(self.T(), hunt_obj.State, api_proto.Hunt_PAUSED)
 
 	// Check that the hunt caches the compiled collector args so
-	// we dont need to compile it for each client. For normal
+	// we don't need to compile it for each client. For normal
 	// artifacts there should be only one collector args because
 	// each artifact is collected serially on the client.
 	assert.Equal(self.T(), len(hunt_obj.StartRequest.CompiledCollectorArgs), 2)

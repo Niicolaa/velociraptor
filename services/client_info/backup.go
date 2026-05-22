@@ -38,7 +38,7 @@ func (self ClientInfoBackupProvider) BackupResults(
 func (self *Store) BackupResults(
 	ctx context.Context, wg *sync.WaitGroup) (<-chan vfilter.Row, error) {
 
-	// We dont lock the data so we can take as long as needed.
+	// We don't lock the data so we can take as long as needed.
 	clients := self.Keys()
 	output := make(chan vfilter.Row)
 

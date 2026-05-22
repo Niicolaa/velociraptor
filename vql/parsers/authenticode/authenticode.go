@@ -30,10 +30,10 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/go-pe"
 	"www.velocidex.com/golang/velociraptor/accessors"
+	"www.velocidex.com/golang/velociraptor/accessors/file"
 	"www.velocidex.com/golang/velociraptor/acls"
 	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/utils"
-	"www.velocidex.com/golang/velociraptor/vql"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/readers"
 	"www.velocidex.com/golang/vfilter"
@@ -53,6 +53,7 @@ func (self *AuthenticodeFunction) Call(ctx context.Context,
 	args *ordereddict.Dict) vfilter.Any {
 
 	defer vql_subsystem.RegisterMonitor(ctx, "authenticode", args)()
+	defer utils.RecoverVQL(scope)
 
 	err := vql_subsystem.CheckAccess(scope, acls.MACHINE_STATE)
 	if err != nil {
@@ -119,6 +120,12 @@ func (self *AuthenticodeFunction) Call(ctx context.Context,
 		return output
 	}
 
+	err = file.CheckPath(normalized_path)
+	if err != nil {
+		scope.Log("authenticode: %v", err)
+		return vfilter.Null{}
+	}
+
 	// Maybe the file is in the cat file?
 	fd, err := os.Open(normalized_path)
 	if err == nil {
@@ -146,7 +153,7 @@ func (self AuthenticodeFunction) Info(
 		Doc: "This plugin uses the Windows API to extract authenticode " +
 			"signature details from PE files.",
 		ArgType:  type_map.AddType(scope, &AuthenticodeArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.MACHINE_STATE).Build(),
 	}
 }
 

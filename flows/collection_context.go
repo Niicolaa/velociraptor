@@ -71,6 +71,6 @@ func updateQueryStats(
 		}
 	}
 
-	// We dont have this status yet
+	// We don't have this status yet
 	collection_context.QueryStats = append(collection_context.QueryStats, status)
 }

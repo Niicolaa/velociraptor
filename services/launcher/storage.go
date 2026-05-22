@@ -47,7 +47,8 @@ func (self *FlowStorageManager) WriteFlow(
 		return err
 	}
 
-	flow_path_manager := paths.NewFlowPathManager(flow.ClientId, flow.SessionId)
+	sesion_id, _ := utils.SplitSessionIdToParentAndChild(flow.SessionId)
+	flow_path_manager := paths.NewFlowPathManager(flow.ClientId, sesion_id)
 	return db.SetSubjectWithCompletion(
 		config_obj, flow_path_manager.Path(), flow, completion)
 }
@@ -63,7 +64,8 @@ func (self *FlowStorageManager) WriteFlowStats(
 		return err
 	}
 
-	flow_path_manager := paths.NewFlowPathManager(flow.ClientId, flow.SessionId)
+	sesion_id, _ := utils.SplitSessionIdToParentAndChild(flow.SessionId)
+	flow_path_manager := paths.NewFlowPathManager(flow.ClientId, sesion_id)
 	return db.SetSubjectWithCompletion(
 		config_obj, flow_path_manager.Stats(), flow, completion)
 }
@@ -97,7 +99,10 @@ func (self *FlowStorageManager) WriteTask(
 		return err
 	}
 
-	flow_path_manager := paths.NewFlowPathManager(client_id, msg.SessionId)
+	// The task contains the client's view of the flow id, but we must
+	// store everything in the parent flow.
+	sesion_id, _ := utils.SplitSessionIdToParentAndChild(msg.SessionId)
+	flow_path_manager := paths.NewFlowPathManager(client_id, sesion_id)
 	return db.SetSubjectWithCompletion(
 		config_obj, flow_path_manager.Task(),
 		&api_proto.ApiFlowRequestDetails{
@@ -283,7 +288,7 @@ func (self *FlowStorageManager) LoadCollectionContext(
 		func(client_info *services.ClientInfo) (*services.ClientInfo, error) {
 			if client_info != nil &&
 				client_info.InFlightFlows != nil {
-				in_flight_time, _ = client_info.InFlightFlows[flow_id]
+				in_flight_time = client_info.InFlightFlows[flow_id]
 			}
 			return nil, nil
 		})
@@ -386,7 +391,7 @@ func NewFlowStorageManager(
 		throttler:     utils.NewThrottlerWithDuration(time.Second),
 
 		// Do not allow more than one reindex at the same time. If we
-		// cant get to reindex quickly, we just dont worry about it
+		// cant get to reindex quickly, we just don't worry about it
 		// and use the old index snapshot.
 		concurrencyControl: utils.NewConcurrencyControl(
 			1, 100*time.Millisecond),

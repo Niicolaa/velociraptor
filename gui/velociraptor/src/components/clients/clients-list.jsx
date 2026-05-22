@@ -538,7 +538,7 @@ class VeloClientList extends Component {
                              variant="default">
                        <FontAwesomeIcon icon="trash"/>
                      </Button>
-                     { // Kiling clients requires the machine_state
+                     { // Killing clients requires the machine_state
                          // permission. Hide this button for users who do
                          // not have it.
                          this.context && this.context.traits &&

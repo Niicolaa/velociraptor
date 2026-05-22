@@ -245,7 +245,7 @@ collection as error immediately but the collection continues to
 run.
 
 Our concept of what an error represents has evolved over time. It
-is difficult to know what to do when a VQL query enounters an
+is difficult to know what to do when a VQL query encounters an
 error or even what an error means.
 
 For example, if the VQL query tries to parse a certain file but
@@ -254,15 +254,15 @@ on context. Most of the time we want to just report the issue and
 move on.
 
 VQL always continues running when encountering an error. This
-simplifies writing the queries (because we dont need to deal with
+simplifies writing the queries (because we don't need to deal with
 errors all the time). But we need to report the error, usually via
 the query log.
 
 When a user collects an artifact, the GUI shows the success status
-of the artifact. What consitutes success is really subjecting and
+of the artifact. What constitutes success is really subjective and
 depends on the context of the artifact.
 
-Because we dont really know we leave it to the VQL to determine if
+Because we don't really know we leave it to the VQL to determine if
 the collection should be marked as failed. If the VQL logs any
 message at ERROR level, we deem the collection to have
 failed. However, the query is **NOT** aborted - it keeps running
@@ -358,7 +358,7 @@ func (self *FlowResponder) Log(ctx context.Context, level string, msg string) {
 		level = logging.ERROR
 	}
 
-	// We dont need to hold the lock because we are just delegating to
+	// We don't need to hold the lock because we are just delegating to
 	// the flow context.
 	self.flow_context.AddLogMessage(ctx, level, msg)
 

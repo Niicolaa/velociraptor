@@ -22,6 +22,7 @@ import FullScreenTable from './components/notebooks/table_view.jsx';
 import FullScreenNotebook from './components/notebooks/full_notebook.jsx';
 import FullScreenHuntNotebook from './components/hunts/hunt-full-notebook.jsx';
 import FullScreenFlowNotebook from './components/flows/flow-full-notebook.jsx';
+import { ShellViewerFullScreen } from "./components/clients/shell-viewer.jsx";
 import ArtifactInspector from './components/artifacts/artifacts.jsx';
 import UserInspector from './components/users/user-inspector.jsx';
 import VeloHunts from './components/hunts/hunts.jsx';
@@ -44,6 +45,7 @@ import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
 
 import SidebarKeyNavigator from './components/sidebar/hotkeys.jsx';
+import {setItem, schema} from './components/core/storage.jsx';
 
 import './themes/no-theme.css';
 import './themes/veloci-light.css';
@@ -95,6 +97,10 @@ class App extends Component {
 
     // Called to update the current client.
     setClient = (client) => {
+        let client_id = client && client.client_id;
+        if(client_id) {
+            setItem(schema.CurrentSelectedClientKey, client_id);
+        }
         this.setState({client: client});
     };
 
@@ -248,6 +254,10 @@ class App extends Component {
                 <SnackbarProvider>
                   <SidebarKeyNavigator client={this.state.client}/>
                   <Switch>
+                    <Route path="/fullscreen/shell/:artifact/:client_id/:flow_id">
+                      <ShellViewerFullScreen />
+                    </Route>
+
                     <Route path="/fullscreen/notebooks/:notebook_id">
                       <FullScreenNotebook />
                     </Route>

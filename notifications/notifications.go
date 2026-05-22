@@ -223,7 +223,7 @@ func NewNotificationPool(
 		ctx:     ctx,
 	}
 
-	// Decrememnted in Shutdown
+	// Decremented in Shutdown
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

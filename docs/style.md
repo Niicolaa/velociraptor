@@ -1,16 +1,16 @@
 # Velociraptor code base style guide
 
-The following summarises at a high level some style convensions in the
+The following summarises at a high level some style conventions in the
 codebase.
 
 ## Receivers shall be named `self`
 
-This convension is contrary to the usual Golang convention of using
+This convention is contrary to the usual Golang convention of using
 different variable names for the receiver. In Velociraptor, all
 receivers are named `self` in a similar way to the Python convention.
 
 Using the same consistent name for all receivers makes code much
-easier to read and reduces congnitive load. When you see `self` you
+easier to read and reduces cognitive load. When you see `self` you
 know it refers to the receiver of the current method.
 
 ## Variable naming
@@ -34,7 +34,7 @@ know it refers to the receiver of the current method.
 1. Minimize the use of recursive locks, preferring to use `sync.Mutex`
    instead.
 
-2. Mutexes shall be embedded in the stucts they protect as a private
+2. Mutexes shall be embedded in the structs they protect as a private
    variable. The variable shall be named `mu`. Hence locks are
    obtained using `self.mu.Lock()`
 
@@ -75,7 +75,7 @@ func (self *ExampleType) otherMethod() {
 ```
 
 This scheme makes it easier to see which methods require the locks
-held and eaiser to quickly audit the methods called within a function
+held and easier to quickly audit the methods called within a function
 to ensure they are safe:
 
 * If a method starts with a lower case (private method) we know the

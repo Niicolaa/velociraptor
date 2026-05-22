@@ -39,7 +39,7 @@ func (self HuntBackupProvider) BackupResults(
 func (self *HuntStorageManagerImpl) BackupResults(
 	ctx context.Context, wg *sync.WaitGroup) (<-chan vfilter.Row, error) {
 
-	// We dont lock the data so we can take as long as needed.
+	// We don't lock the data so we can take as long as needed.
 	self.mu.Lock()
 	var hunt_ids []string
 	for hunt_id := range self.hunts {
@@ -104,7 +104,7 @@ func (self *HuntStorageManagerImpl) Restore(ctx context.Context,
 	count := 0
 	defer func() {
 		// Force the dispatcher to refresh from the filestore.
-		err = self.Refresh(ctx, config_obj)
+		err = self.Refresh(ctx, config_obj, FORCE_REFRESH)
 		if err != nil {
 			stat.Error = err
 		}

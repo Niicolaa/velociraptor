@@ -6,13 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"www.velocidex.com/golang/go-ntfs/parser"
 	ntfs "www.velocidex.com/golang/go-ntfs/parser"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/accessors/ntfs/readers"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	"www.velocidex.com/golang/velociraptor/constants"
-	"www.velocidex.com/golang/velociraptor/logging"
 	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
@@ -120,7 +118,7 @@ func (self *USNWatcherService) Register(
 
 // Distribute the event to all interested listeners.
 func (self *USNWatcherService) distributeEvent(
-	event *parser.USN_RECORD, key string) {
+	event *ntfs.USN_RECORD, key string) {
 
 	self.mu.Lock()
 	handlers, pres := self.registrations[key]
@@ -172,12 +170,9 @@ func (self *USNWatcherService) StartMonitoring(
 			self.mu.Lock()
 			handlers, pres := self.registrations[key]
 
-			// No more registrations, we dont care any more.
+			// No more registrations, we don't care any more.
 			if !pres || len(handlers) == 0 {
 				delete(self.registrations, key)
-				logger := logging.GetLogger(config_obj, &logging.ClientComponent)
-				logger.Info("Unregistering USN log watcher for %v", device)
-
 				self.mu.Unlock()
 				return
 			}

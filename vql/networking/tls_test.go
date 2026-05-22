@@ -61,7 +61,7 @@ func TestTLSVerification(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Default client config is PKI verification - we dont like this
+	// Default client config is PKI verification - we don't like this
 	// certificate.
 	config_obj := &config_proto.ClientConfig{}
 	_, _, err := testHTTPConnection(config_obj, ts.URL)
@@ -118,7 +118,7 @@ func TestTLSVerification(t *testing.T) {
 			},
 		},
 	}
-	_, data, err = testHTTPConnection(config_obj, "https://www.google.com")
+	_, _, err = testHTTPConnection(config_obj, "https://www.google.com")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Server certificate had no known thumbprint")
 

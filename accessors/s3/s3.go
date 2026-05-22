@@ -1,3 +1,6 @@
+//go:build sumo
+// +build sumo
+
 /* An accessor for an S3 bucket */
 
 package s3
@@ -260,7 +263,7 @@ func init() {
 	accessors.Register(&RawS3SystemAccessor{})
 }
 
-// Set the page size for tests. Normally we dont need to adjust this
+// Set the page size for tests. Normally we don't need to adjust this
 // at all. Used in tests.
 func SetPageSize(size int32) {
 	mu.Lock()

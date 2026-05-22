@@ -8,7 +8,7 @@ import (
 	"github.com/Velocidex/ordereddict"
 	"www.velocidex.com/golang/velociraptor/accessors"
 	"www.velocidex.com/golang/velociraptor/acls"
-	"www.velocidex.com/golang/velociraptor/vql"
+	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/readers"
 	"www.velocidex.com/golang/vfilter"
@@ -30,7 +30,8 @@ func (self JournalPlugin) Info(scope vfilter.Scope, type_map *vfilter.TypeMap) *
 		Name:     "parse_journald",
 		Doc:      "Parse a journald file.",
 		ArgType:  type_map.AddType(scope, &JournalPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Version:  2,
 	}
 }
 
@@ -42,6 +43,7 @@ func (self JournalPlugin) Call(
 	go func() {
 		defer close(output_chan)
 		defer vql_subsystem.RegisterMonitor(ctx, "parse_journald", args)()
+		defer utils.RecoverVQL(scope)
 
 		arg := &JournalPluginArgs{}
 		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
@@ -148,7 +150,7 @@ func (self WatchJournaldPlugin) Info(scope vfilter.Scope, type_map *vfilter.Type
 		Name:     "watch_journald",
 		Doc:      "Watch a journald file and stream events from it. ",
 		ArgType:  type_map.AddType(scope, &WatchJournalPluginArgs{}),
-		Metadata: vql.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
+		Metadata: vql_subsystem.VQLMetadata().Permissions(acls.FILESYSTEM_READ).Build(),
 	}
 }
 

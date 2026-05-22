@@ -158,7 +158,7 @@ func (self *SuperTimelineAnnotatorImpl) AnnotateTimeline(
 	seen[guid] = true
 
 	// Now read all the current events and replay them in order to
-	// sort.  NOTE: This is not very efficient way but we dont expect
+	// sort.  NOTE: This is not very efficient way but we don't expect
 	// too many annotations so for now this is good enough.
 	super_path_manager := paths.NewNotebookPathManager(notebook_id).
 		SuperTimeline(supertimeline)
@@ -236,7 +236,7 @@ func (self *SuperTimelineAnnotatorImpl) ensureAnnotationComponent(
 		}
 	}
 
-	// If we get here we dont have the Annotation component so just
+	// If we get here we don't have the Annotation component so just
 	// add it.
 	timeline := &timelines_proto.Timeline{
 		Id:              constants.TIMELINE_ANNOTATION,

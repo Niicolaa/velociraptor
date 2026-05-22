@@ -32,7 +32,7 @@ type ToolOptions struct {
 	AdminOverride bool
 
 	// Tool definition is from an artifact definition. Hold onto this
-	// as one of the prestine versions so the user can reset it back
+	// as one of the pristine versions so the user can reset it back
 	// if needed.
 	ArtifactDefinition bool
 }
@@ -65,5 +65,5 @@ type Inventory interface {
 		tool *artifacts_proto.Tool, opts ToolOptions) error
 
 	// Remove the tool from the inventory and all its versions.
-	RemoveTool(config_obj *config_proto.Config, tool_name string) error
+	RemoveTool(ctx context.Context, config_obj *config_proto.Config, tool_name string) error
 }

@@ -467,7 +467,7 @@ func (self *NotebookWorker) RegisterWorker(
 
 			// run the query in the correct ORG. We assume ACL
 			// checks occur in the GUI so we can only receive
-			// valid requrests here.
+			// valid requests here.
 			org_config_obj, err := org_manager.GetOrgConfig(job.OrgId)
 			if err != nil {
 				job.Done("", err)

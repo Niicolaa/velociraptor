@@ -34,7 +34,7 @@ type NotebookStore interface {
 		*api_proto.NotebookCell, error)
 
 	// progress_chan receives information about deletion. It may be
-	// nil if callers dont care about it.
+	// nil if callers don't care about it.
 	RemoveNotebookCell(
 		ctx context.Context, config_obj *config_proto.Config,
 		notebook_id, cell_id, version string,
