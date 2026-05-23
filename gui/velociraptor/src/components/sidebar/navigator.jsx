@@ -172,6 +172,7 @@ class VeloNavigator extends Component {
                       {T("Main Menu")}
                     </h2>
                     <ul className="nav nav-pills navigator">
+                      <li className="sidebar-section-title">{T("Overview")}</li>
                       <li className="nav-link">
                         <NavLink exact={true} to="/dashboard">
                           <span>
@@ -183,6 +184,7 @@ class VeloNavigator extends Component {
                         </NavLink>
                       </li>
 
+                      <li className="sidebar-section-title">{T("Investigate")}</li>
                       <li className="nav-link">
                         <NavLink to={this.getHuntLink()}>
                           <span>
@@ -205,6 +207,18 @@ class VeloNavigator extends Component {
                         </NavLink>
                       </li>
 
+                      <li className="nav-link">
+                        <NavLink to={this.getNotebookLink()}>
+                          <span>
+                            <i className="navicon">
+                              <FontAwesomeIcon icon="book" />
+                            </i>
+                          </span>
+                          {T("Notebooks")}
+                        </NavLink>
+                      </li>
+
+                      <li className="sidebar-section-title">{T("Server")}</li>
                       {!customization.disable_server_events && (
                         <li className="nav-link">
                           <NavLink to={this.getServerEventLink()}>
@@ -229,17 +243,6 @@ class VeloNavigator extends Component {
                         </NavLink>
                       </li>
 
-                      <li className="nav-link">
-                        <NavLink to={this.getNotebookLink()}>
-                          <span>
-                            <i className="navicon">
-                              <FontAwesomeIcon icon="book" />
-                            </i>
-                          </span>
-                          {T("Notebooks")}
-                        </NavLink>
-                      </li>
-
                       {user_is_admin && !customization.disable_user_management && (
                         <li className="nav-link">
                           <NavLink to="/users">
@@ -253,6 +256,7 @@ class VeloNavigator extends Component {
                         </li>
                       )}
 
+                      <li className="sidebar-section-title">{T("Selected Host")}</li>
                       <li
                         className={classNames({
                           "nav-link": true,
@@ -341,6 +345,9 @@ class VeloNavigator extends Component {
                         </NavLink>
                       </li>
 
+                      {sidebar_links.length > 0 && (
+                          <li className="sidebar-section-title">{T("Links")}</li>
+                      )}
                       {_.map(sidebar_links, (x) => {
                           let icon_url = x.icon_url;
                           let img = [];

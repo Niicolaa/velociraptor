@@ -68,6 +68,8 @@ class _UserSettings extends React.Component {
                         document.body.classList.remove('veloci-dark');
                         document.body.classList.remove('veloci-light');
                         document.body.classList.remove('veloci-docs');
+                        document.body.classList.remove('veloci-flat-light');
+                        document.body.classList.remove('veloci-flat-dark');
                         document.body.classList.remove('pink-light');
                         document.body.classList.remove('github-dimmed-dark');
                         document.body.classList.remove('ncurses-light');
@@ -75,7 +77,7 @@ class _UserSettings extends React.Component {
                         document.body.classList.remove('coolgray-dark');
                         document.body.classList.remove('midnight');
                         document.body.classList.remove('vscode-dark');
-                        document.body.classList.add(traits.theme || "veloci-light");
+                        document.body.classList.add(traits.theme || "veloci-flat-light");
 
                         // veloci-docs is just a modified version of veloci-light
                         if (traits.theme === "veloci-docs") {

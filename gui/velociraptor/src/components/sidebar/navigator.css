@@ -133,3 +133,33 @@ a.disabled {
     width: 15px;
     height: 15px;
 }
+
+/* Section headings inside the sidebar. Shown when the sidebar is
+ * expanded; rendered as a thin divider when the sidebar is collapsed
+ * to its icon-only width. */
+.sidebar-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-foreground-dimmed, #888);
+    padding: 14px 20px 4px 20px;
+    font-weight: 600;
+    user-select: none;
+    list-style: none;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+div#navigator.collapsed .sidebar-section-title {
+    color: transparent;
+    border-top: 1px solid var(--color-btn-border, #ddd);
+    margin: 8px 10px 0 10px;
+    padding: 0;
+    height: 1px;
+    overflow: hidden;
+}
+
+div#navigator.collapsed .sidebar-section-title:first-child {
+    border-top: none;
+    margin-top: 0;
+}

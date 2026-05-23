@@ -1,0 +1,141 @@
+/*
+ * Redesigned welcome / landing page.
+ *
+ * Built for the flat themes; falls back gracefully under the other
+ * themes because everything uses the shared --color-* variables.
+ */
+
+.welcome-page {
+    padding: 32px clamp(20px, 6vw, 64px);
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.welcome-hero {
+    margin-bottom: 32px;
+}
+
+.welcome-hero h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+    color: var(--color-foreground);
+}
+
+.welcome-hero p {
+    font-size: 16px;
+    color: var(--color-foreground-dimmed);
+    margin: 0;
+    max-width: 720px;
+}
+
+.welcome-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-foreground-dimmed);
+    font-weight: 600;
+    margin: 32px 0 14px 4px;
+}
+
+.welcome-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.welcome-action-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px;
+    border: 1px solid var(--color-btn-border);
+    border-radius: 10px;
+    background: var(--color-canvas-background);
+    color: var(--color-foreground);
+    text-decoration: none;
+    transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+    min-height: 132px;
+}
+
+.welcome-action-card:hover {
+    border-color: var(--accent-color);
+    background: var(--color-canvas-background-complement);
+    text-decoration: none;
+    color: var(--color-foreground);
+    transform: translateY(-1px);
+}
+
+.welcome-action-card .action-icon {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--color-canvas-background-complement);
+    color: var(--accent-color);
+    font-size: 16px;
+    border: 1px solid var(--color-btn-border);
+}
+
+.welcome-action-card:hover .action-icon {
+    background: var(--accent-color);
+    color: var(--color-foreground-inverse);
+    border-color: var(--accent-color);
+}
+
+.welcome-action-card .action-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-foreground);
+    margin: 0;
+}
+
+.welcome-action-card .action-desc {
+    font-size: 13px;
+    color: var(--color-foreground-dimmed);
+    line-height: 1.45;
+    margin: 0;
+}
+
+.welcome-action-card .action-kbd {
+    margin-top: auto;
+    font-family: var(--font-family-monospace);
+    font-size: 11px;
+    color: var(--color-foreground-dimmed);
+}
+
+.welcome-action-card .action-kbd kbd {
+    background: var(--color-canvas-background-complement);
+    border: 1px solid var(--color-btn-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 11px;
+    color: var(--color-foreground);
+}
+
+.welcome-tips {
+    margin-top: 36px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--color-btn-border);
+    background: var(--color-canvas-background-complement);
+    color: var(--color-foreground-dimmed);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.welcome-tips strong {
+    color: var(--color-foreground);
+}
+
+.welcome-tips ul {
+    margin: 8px 0 0 0;
+    padding-left: 18px;
+}
+
+.welcome-server-report {
+    margin-top: 36px;
+}

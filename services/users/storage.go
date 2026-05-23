@@ -345,9 +345,9 @@ func setDefaultGUIOptions(
 		options.Theme = defaults.DefaultTheme
 	}
 
-	// Default theme if not set is veloci-light
+	// Default theme if not set is the new flat light theme.
 	if options.Theme == "" {
-		options.Theme = "veloci-light"
+		options.Theme = "veloci-flat-light"
 	}
 }
 

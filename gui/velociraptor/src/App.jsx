@@ -51,6 +51,8 @@ import './themes/no-theme.css';
 import './themes/veloci-light.css';
 import './themes/veloci-docs.css';
 import './themes/veloci-dark.css';
+import './themes/veloci-flat-light.css';
+import './themes/veloci-flat-dark.css';
 import './themes/pink-light.css';
 import './themes/github-dimmed-dark.css';
 import './themes/ncurses-light.css';

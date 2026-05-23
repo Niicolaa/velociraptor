@@ -137,7 +137,7 @@ class UserSettingsDialog extends React.PureComponent {
     componentDidMount = () => {
         if (this.context.traits) {
             this.setState({
-                theme: this.context.traits.theme || "veloci-light",
+                theme: this.context.traits.theme || "veloci-flat-light",
                 timezone: this.context.traits.timezone || "UTC",
                 lang: this.context.traits.lang || "en",
                 org: window.globals.OrgId,
@@ -276,6 +276,8 @@ class UserSettingsDialog extends React.PureComponent {
                                           theme: e.currentTarget.value,
                                       });
                                   }}>
+                      <option value="veloci-flat-light">{T("Velociraptor Flat (light)")}</option>
+                      <option value="veloci-flat-dark">{T("Velociraptor Flat (dark)")}</option>
                       <option value="veloci-light">{T("Velociraptor (light)")}</option>
                       <option value="veloci-dark">{T("Velociraptor (dark)")}</option>
                       <option value="vscode-dark">{T("VS Code (dark)")}</option>
@@ -451,6 +453,12 @@ export default class UserLabel extends React.Component {
                 ace_options.fontFamily = "Iosevka Term";
             } else if (params.theme === "veloci-dark") {
                 ace_options.theme = "ace/theme/vibrant_ink";
+                ace_options.fontFamily = "Iosevka Term";
+            } else if (params.theme === "veloci-flat-light") {
+                ace_options.theme = "ace/theme/xcode";
+                ace_options.fontFamily = "Iosevka Term";
+            } else if (params.theme === "veloci-flat-dark") {
+                ace_options.theme = "ace/theme/tomorrow_night";
                 ace_options.fontFamily = "Iosevka Term";
             } else if(params.theme === "veloci-light" || params.theme === "veloci-docs") {
                 ace_options.theme = "ace/theme/xcode";
