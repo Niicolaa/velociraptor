@@ -1,0 +1,49 @@
+name: MacOS.Packs.CompromiseAssessment
+description: |
+  Triage pack for credential-compromise assessment on a macOS host.
+
+  Bundles:
+
+    1. `MacOS.Credentials.Inventory`           - credential store inventory
+    2. `MacOS.Events.InteractiveLogonHistory`  - logon history from utmpx
+                                                  and the unified log
+    3. `Generic.Detection.SecretScanner`       - TruffleHog filesystem scan
+
+  Conservative defaults: no plaintext extraction, no TruffleHog
+  verification, unified-log window 30 days.
+
+precondition: SELECT OS From info() where OS = 'darwin'
+
+parameters:
+  - name: Extract
+    type: bool
+  - name: Verify
+    type: bool
+  - name: UnifiedLogWindow
+    default: '30d'
+  - name: SecretScanPaths
+    default: '/Users'
+
+sources:
+  - name: CredentialInventory
+    query: |
+      SELECT * FROM Artifact.MacOS.Credentials.Inventory(
+        Extract=Extract)
+
+  - name: LogonEvents
+    query: |
+      SELECT * FROM Artifact.MacOS.Events.InteractiveLogonHistory(
+        UnifiedLogWindow=UnifiedLogWindow,
+        source="LogonEvents")
+
+  - name: LogonPerUserSummary
+    query: |
+      SELECT * FROM Artifact.MacOS.Events.InteractiveLogonHistory(
+        UnifiedLogWindow=UnifiedLogWindow,
+        source="PerUserSummary")
+
+  - name: SecretFindings
+    query: |
+      SELECT * FROM Artifact.Generic.Detection.SecretScanner(
+        ScanPaths=SecretScanPaths,
+        Verify=Verify)

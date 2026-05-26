@@ -1,0 +1,164 @@
+name: Linux.Events.InteractiveLogonHistory
+description: |
+  Reconstructs the interactive logon history of a Linux host for
+  compromise assessment.
+
+  Sources:
+    - `/var/log/wtmp*` parsed via the utmp profile (successful sessions)
+    - `/var/log/btmp*` parsed via the utmp profile (failed sessions)
+    - `/var/log/auth.log*` / `/var/log/secure*` regex-scanned for
+       sshd, sudo, login PAM events
+
+  Source `LogonEvents`     normalised row stream of every session start
+                            / failure with user, source IP, tty, time.
+  Source `PerUserSummary`  aggregated first-seen / last-seen / success /
+                            failure counts per user.
+
+  Note on credential exposure: On Linux there is no exact equivalent of
+  the Windows `LogonType = 3` "network logon" - every interactive ssh
+  or sudo session involves either a password being typed or a key being
+  presented to the local PAM stack. The default filter therefore keeps
+  all `USER_PROCESS` / `LOGIN_PROCESS` sessions. Set
+  `ExcludeNonTty=true` (default) to drop sessions with an empty tty,
+  which approximates "background / service" logons.
+
+author: "Claude - credential-compromise-detection"
+
+reference:
+  - https://man7.org/linux/man-pages/man5/utmp.5.html
+
+precondition: SELECT OS From info() where OS = 'linux'
+
+parameters:
+  - name: WtmpGlobs
+    default: /var/log/wtmp*
+  - name: BtmpGlobs
+    default: /var/log/btmp*
+  - name: AuthLogGlobs
+    default: /var/log/auth.log*,/var/log/secure*
+  - name: ExcludeNonTty
+    type: bool
+    default: true
+    description: Drop sessions that have an empty tty (service / background).
+  - name: UserNameRegex
+    type: regex
+    default: '.+'
+  - name: MaxRecordsPerFile
+    type: int64
+    default: 100000
+
+export: |
+  LET utmpProfile = '''
+  [
+    ["Header", 0, [
+      ["records", 0, "Array", {
+          "type": "utmp",
+          "count": "x=>MaxCount",
+          "max_count": 1000000
+      }]
+    ]],
+    ["utmp", 384, [
+        ["ut_type", 0, "Enumeration", {
+            "type": "short int",
+            "choices": {
+               "0": "EMPTY",
+               "1": "RUN_LVL",
+               "2": "BOOT_TIME",
+               "5": "INIT_PROCESS",
+               "6": "LOGIN_PROCESS",
+               "7": "USER_PROCESS",
+               "8": "DEAD_PROCESS"
+             }
+        }],
+        ["ut_pid", 4, "int"],
+        ["ut_terminal", 8, "String", {"length": 32}],
+        ["ut_terminal_identifier", 40, "String", {"length": 4}],
+        ["ut_user", 44, "String", {"length": 32}],
+        ["ut_hostname", 76, "String", {"length": 256}],
+        ["ut_termination_status", 332, "int"],
+        ["ut_exit_status", 334, "int"],
+        ["ut_session", 336, "int"],
+        ["ut_timestamp", 340, "Timestamp", {"type": "uint32"}],
+        ["ut_ip_address", 348, "int64"]
+      ]]
+  ]
+  '''
+
+sources:
+  - name: LogonEvents
+    query: |
+      LET MaxCount <= MaxRecordsPerFile
+
+      LET parse_utmp(globs, success) =
+        SELECT * FROM foreach(
+          row={ SELECT OSPath FROM glob(globs=split(string=globs, sep=",")) },
+          query={
+            SELECT * FROM foreach(
+              row=parse_binary(filename=OSPath, profile=utmpProfile, struct="Header").records,
+              query={
+                SELECT
+                  ut_timestamp AS EventTime,
+                  ut_user AS TargetUserName,
+                  ut_terminal AS Tty,
+                  ut_hostname AS SourceHost,
+                  ip(netaddr4_le=ut_ip_address) AS SourceIP,
+                  ut_pid AS PID,
+                  ut_type AS UtmpType,
+                  success AS Success,
+                  OSPath AS SourceFile
+                FROM scope()
+                WHERE ut_type =~ "USER_PROCESS|LOGIN_PROCESS"
+                  AND TargetUserName
+                  AND TargetUserName =~ UserNameRegex
+                  AND if(condition=ExcludeNonTty,
+                         then=Tty AND Tty != "",
+                         else=TRUE)
+              })
+          })
+
+      LET wtmp_rows = parse_utmp(globs=WtmpGlobs, success=TRUE)
+      LET btmp_rows = parse_utmp(globs=BtmpGlobs, success=FALSE)
+
+      LET auth_rows = SELECT * FROM foreach(
+        row={ SELECT OSPath FROM glob(globs=split(string=AuthLogGlobs, sep=",")) },
+        query={
+          SELECT
+            timestamp(string=Match.Date) AS EventTime,
+            Match.User AS TargetUserName,
+            "" AS Tty,
+            Match.Host AS SourceHost,
+            Match.IP AS SourceIP,
+            atoi(string=Match.PID) AS PID,
+            "AUTH_LOG" AS UtmpType,
+            Match.Result =~ "Accepted|session opened" AS Success,
+            OSPath AS SourceFile
+          FROM parse_records_with_regex(
+            file=OSPath,
+            regex='(?P<Date>\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+)\\s+\\S+\\s+sshd\\[(?P<PID>\\d+)\\]:\\s+(?P<Result>Accepted|Failed)\\s+(?P<Method>\\S+)\\s+for\\s+(?:invalid\\s+user\\s+)?(?P<User>\\S+)\\s+from\\s+(?P<IP>\\S+)')
+          WHERE TargetUserName =~ UserNameRegex
+        })
+
+      SELECT * FROM chain(a=wtmp_rows, b=btmp_rows, c=auth_rows)
+
+  - name: PerUserSummary
+    query: |
+      LET events = SELECT * FROM Artifact.Linux.Events.InteractiveLogonHistory(
+            WtmpGlobs=WtmpGlobs,
+            BtmpGlobs=BtmpGlobs,
+            AuthLogGlobs=AuthLogGlobs,
+            ExcludeNonTty=ExcludeNonTty,
+            UserNameRegex=UserNameRegex,
+            MaxRecordsPerFile=MaxRecordsPerFile,
+            source="LogonEvents")
+
+      SELECT
+          TargetUserName,
+          min(item=EventTime) AS FirstSeen,
+          max(item=EventTime) AS LastSeen,
+          count(items=if(condition=Success, then=1)) AS SuccessCount,
+          count(items=if(condition=NOT Success, then=1)) AS FailureCount,
+          enumerate(items=Tty) AS DistinctTtys,
+          enumerate(items=SourceIP) AS DistinctSourceIPs,
+          enumerate(items=SourceHost) AS DistinctSourceHosts
+      FROM events
+      GROUP BY TargetUserName

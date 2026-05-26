@@ -1,0 +1,190 @@
+name: Windows.EventLogs.InteractiveLogonHistory
+description: |
+  Reconstructs the interactive logon history of a Windows host from the
+  Security event log for compromise-assessment use.
+
+  The artifact's purpose is to answer: "which user credentials were
+  present on this host?" — therefore by default it excludes
+  `LogonType = 3` (Network). Network logons authenticate via Kerberos
+  tickets or NTLM challenge/response and never deliver plaintext (or
+  reusable cleartext-equivalent material) to the local machine, so they
+  do not increase the credential-compromise blast radius. Every other
+  logon type leaves either plaintext, an NT hash, a cached verifier, or
+  a Kerberos service ticket somewhere on the host and is therefore
+  reported.
+
+  Default `LogonTypes` (Windows definitions):
+
+    2  Interactive          - local console logon
+    4  Batch                - scheduled task
+    5  Service              - service start
+    7  Unlock               - workstation unlock
+    8  NetworkCleartext     - cleartext credentials over the wire (IIS basic auth, etc.)
+    9  NewCredentials       - runas /netonly
+    10 RemoteInteractive    - RDP
+    11 CachedInteractive    - cached domain credentials used while offline
+
+  Source `LogonEvents`         raw 4624 / 4625 / 4648 / 4672 / 4776 rows.
+  Source `PerUserSummary`      one row per user with first-seen,
+                                last-seen, success/failure counts,
+                                distinct logon types, distinct source
+                                IPs, and a privileged-logon counter
+                                (4672 - SeDebugPrivilege etc.).
+
+  Use this alongside `Windows.Credentials.Inventory` to scope which
+  credential stores on the host could have been compromised by which
+  accounts.
+
+author: "Claude - credential-compromise-detection"
+
+reference:
+  - https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4624
+  - https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4625
+  - https://www.sans.org/posters/hunt-evil/
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+parameters:
+  - name: SecurityLog
+    description: Path to the Security event log.
+    default: '%SystemRoot%\System32\Winevt\Logs\Security.evtx'
+  - name: LogonTypes
+    description: |
+      Logon types to include. Default excludes 3 (Network) because
+      network logons do not expose credential material on the target
+      host.
+    type: json_array
+    default: '[2,4,5,7,8,9,10,11]'
+  - name: UserNameRegex
+    description: Only report events for usernames matching this regex.
+    default: '.+'
+    type: regex
+  - name: UserNameWhitelist
+    description: Drop events for usernames matching this regex (default drops machine accounts ending in $).
+    default: '\$$'
+    type: regex
+  - name: DateAfter
+    description: Only include events after this date (YYYY-MM-DDTHH:MM:SSZ).
+    type: timestamp
+  - name: DateBefore
+    description: Only include events before this date (YYYY-MM-DDTHH:MM:SSZ).
+    type: timestamp
+  - name: VSSAnalysisAge
+    type: int
+    default: 0
+    description: |
+      If greater than zero, analyse VSS within this many days. Uses the
+      ntfs_vss accessor which is significantly slower.
+
+sources:
+  - name: LogonEvents
+    query: |
+      LET Accessor = if(condition=VSSAnalysisAge > 0, then="ntfs_vss", else="auto")
+      LET S = scope()
+
+      LET DateAfterTime <= if(condition=DateAfter,
+        then=DateAfter, else=timestamp(epoch="1600-01-01"))
+      LET DateBeforeTime <= if(condition=DateBefore,
+        then=DateBefore, else=timestamp(epoch="2200-01-01"))
+
+      LET fspaths <= SELECT OSPath
+        FROM glob(globs=expand(path=SecurityLog), accessor=Accessor)
+
+      LET logon_type_name = dict(
+            `2`='Interactive',
+            `3`='Network',
+            `4`='Batch',
+            `5`='Service',
+            `7`='Unlock',
+            `8`='NetworkCleartext',
+            `9`='NewCredentials',
+            `10`='RemoteInteractive',
+            `11`='CachedInteractive')
+
+      LET event_name = dict(
+            `4624`='LOGON_SUCCESS',
+            `4625`='LOGON_FAILURE',
+            `4648`='EXPLICIT_LOGON',
+            `4672`='SPECIAL_PRIVILEGES_ASSIGNED',
+            `4776`='NTLM_CREDENTIAL_VALIDATION')
+
+      LET rows = SELECT * FROM foreach(row=fspaths, query={
+        SELECT
+            timestamp(epoch=int(int=System.TimeCreated.SystemTime)) AS EventTime,
+            System.Computer AS Computer,
+            System.EventID.Value AS EventID,
+            get(item=event_name, member=str(str=System.EventID.Value)) AS EventName,
+            EventData.TargetUserName AS TargetUserName,
+            EventData.TargetDomainName AS TargetDomainName,
+            EventData.SubjectUserName AS SubjectUserName,
+            EventData.SubjectDomainName AS SubjectDomainName,
+            atoi(string=str(str=EventData.LogonType)) AS LogonType,
+            get(item=logon_type_name, member=str(str=EventData.LogonType)) AS LogonTypeName,
+            EventData.IpAddress AS SourceIP,
+            EventData.WorkstationName AS SourceWorkstation,
+            EventData.ProcessName AS ProcessName,
+            EventData.AuthenticationPackageName AS AuthPackage,
+            EventData.Status AS Status,
+            EventData.FailureReason AS FailureReason,
+            System.EventRecordID AS EventRecordID,
+            OSPath
+        FROM parse_evtx(filename=OSPath, accessor=Accessor)
+        WHERE System.EventID.Value in (4624, 4625, 4648, 4672, 4776)
+          AND EventTime > DateAfterTime
+          AND EventTime < DateBeforeTime
+          AND TargetUserName =~ UserNameRegex
+          AND if(condition=UserNameWhitelist,
+                 then=NOT TargetUserName =~ UserNameWhitelist,
+                 else=TRUE)
+          AND if(condition=System.EventID.Value in (4624, 4625),
+                 then=LogonType in LogonTypes,
+                 else=TRUE)
+      })
+
+      SELECT * FROM rows
+
+  - name: PerUserSummary
+    query: |
+      LET Accessor = if(condition=VSSAnalysisAge > 0, then="ntfs_vss", else="auto")
+
+      LET DateAfterTime <= if(condition=DateAfter,
+        then=DateAfter, else=timestamp(epoch="1600-01-01"))
+      LET DateBeforeTime <= if(condition=DateBefore,
+        then=DateBefore, else=timestamp(epoch="2200-01-01"))
+
+      LET fspaths <= SELECT OSPath
+        FROM glob(globs=expand(path=SecurityLog), accessor=Accessor)
+
+      LET base = SELECT * FROM foreach(row=fspaths, query={
+        SELECT
+            timestamp(epoch=int(int=System.TimeCreated.SystemTime)) AS EventTime,
+            System.EventID.Value AS EventID,
+            EventData.TargetUserName AS TargetUserName,
+            EventData.TargetDomainName AS TargetDomainName,
+            atoi(string=str(str=EventData.LogonType)) AS LogonType,
+            EventData.IpAddress AS SourceIP
+        FROM parse_evtx(filename=OSPath, accessor=Accessor)
+        WHERE System.EventID.Value in (4624, 4625, 4672)
+          AND EventTime > DateAfterTime
+          AND EventTime < DateBeforeTime
+          AND TargetUserName =~ UserNameRegex
+          AND if(condition=UserNameWhitelist,
+                 then=NOT TargetUserName =~ UserNameWhitelist,
+                 else=TRUE)
+          AND if(condition=EventID in (4624, 4625),
+                 then=LogonType in LogonTypes,
+                 else=TRUE)
+      })
+
+      SELECT
+          TargetUserName,
+          TargetDomainName,
+          min(item=EventTime) AS FirstSeen,
+          max(item=EventTime) AS LastSeen,
+          count(items=if(condition=EventID = 4624, then=1)) AS SuccessCount,
+          count(items=if(condition=EventID = 4625, then=1)) AS FailureCount,
+          count(items=if(condition=EventID = 4672, then=1)) AS PrivilegedLogonCount,
+          enumerate(items=LogonType) AS DistinctLogonTypes,
+          enumerate(items=SourceIP) AS DistinctSourceIPs
+      FROM base
+      GROUP BY TargetUserName, TargetDomainName

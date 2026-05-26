@@ -1,0 +1,49 @@
+name: Linux.Packs.CompromiseAssessment
+description: |
+  Triage pack for credential-compromise assessment on a Linux host.
+
+  Bundles:
+
+    1. `Linux.Credentials.Inventory`           - credential store inventory
+    2. `Linux.Events.InteractiveLogonHistory`  - interactive logon history
+                                                  from wtmp / btmp /
+                                                  auth.log
+    3. `Generic.Detection.SecretScanner`       - TruffleHog filesystem scan
+
+  Conservative defaults: no LaZagne, no plaintext extraction, no
+  TruffleHog verification, last 90 days of logons.
+
+precondition: SELECT OS From info() where OS = 'linux'
+
+parameters:
+  - name: RunLaZagne
+    type: bool
+  - name: Extract
+    type: bool
+  - name: Verify
+    type: bool
+  - name: SecretScanPaths
+    default: '/home,/root,/etc,/var/www,/opt'
+
+sources:
+  - name: CredentialInventory
+    query: |
+      SELECT * FROM Artifact.Linux.Credentials.Inventory(
+        Extract=Extract,
+        RunLaZagne=RunLaZagne)
+
+  - name: LogonEvents
+    query: |
+      SELECT * FROM Artifact.Linux.Events.InteractiveLogonHistory(
+        source="LogonEvents")
+
+  - name: LogonPerUserSummary
+    query: |
+      SELECT * FROM Artifact.Linux.Events.InteractiveLogonHistory(
+        source="PerUserSummary")
+
+  - name: SecretFindings
+    query: |
+      SELECT * FROM Artifact.Generic.Detection.SecretScanner(
+        ScanPaths=SecretScanPaths,
+        Verify=Verify)

@@ -1,0 +1,64 @@
+name: Windows.Packs.CompromiseAssessment
+description: |
+  Triage pack for credential-compromise assessment on a Windows host.
+
+  Bundles three sub-artifacts with safe defaults:
+
+    1. `Windows.Credentials.Inventory`       - what credential stores
+                                                 exist on this host
+                                                 (count + locate, no
+                                                 plaintext extraction)
+    2. `Windows.EventLogs.InteractiveLogonHistory`
+                                              - which users have logged
+                                                 in interactively (i.e.
+                                                 whose credentials were
+                                                 present on this host,
+                                                 LogonType 3 excluded)
+    3. `Generic.Detection.SecretScanner`     - TruffleHog filesystem
+                                                 scan with --no-verification
+
+  Defaults are conservative:
+    - no LaZagne (`RunLaZagne=false`)
+    - no plaintext extraction (`Extract=false`)
+    - no TruffleHog verification (`Verify=false`)
+    - logon window: last 90 days
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+parameters:
+  - name: LogonHistoryDays
+    type: int64
+    default: 90
+  - name: RunLaZagne
+    type: bool
+  - name: Extract
+    type: bool
+  - name: Verify
+    type: bool
+  - name: SecretScanPaths
+    default: 'C:/Users'
+
+sources:
+  - name: CredentialInventory
+    query: |
+      SELECT * FROM Artifact.Windows.Credentials.Inventory(
+        Extract=Extract,
+        RunLaZagne=RunLaZagne)
+
+  - name: LogonEvents
+    query: |
+      SELECT * FROM Artifact.Windows.EventLogs.InteractiveLogonHistory(
+        DateAfter=timestamp(epoch=now() - LogonHistoryDays * 86400),
+        source="LogonEvents")
+
+  - name: LogonPerUserSummary
+    query: |
+      SELECT * FROM Artifact.Windows.EventLogs.InteractiveLogonHistory(
+        DateAfter=timestamp(epoch=now() - LogonHistoryDays * 86400),
+        source="PerUserSummary")
+
+  - name: SecretFindings
+    query: |
+      SELECT * FROM Artifact.Generic.Detection.SecretScanner(
+        ScanPaths=SecretScanPaths,
+        Verify=Verify)

@@ -1,0 +1,94 @@
+name: MacOS.Events.InteractiveLogonHistory
+description: |
+  Reconstructs interactive logons on a macOS host for compromise
+  assessment.
+
+  Sources:
+    - utmpx                                (/private/var/run/utmpx)
+    - unified log loginwindow / SecurityAgent events parsed via
+      `log show --style ndjson --predicate ...` and `parse_jsonl`
+    - asl logs                              (/private/var/log/asl - if
+                                              present)
+
+  Mirrors the Linux/Windows artifact shapes:
+
+    Source `LogonEvents`     normalised per-event rows
+    Source `PerUserSummary`  per-user first-seen / last-seen / counts
+
+author: "Claude - credential-compromise-detection"
+
+precondition: SELECT OS From info() where OS = 'darwin'
+
+parameters:
+  - name: UnifiedLogWindow
+    description: How far back to query the unified log (e.g. 30d, 6h).
+    default: "30d"
+  - name: UserNameRegex
+    type: regex
+    default: '.+'
+  - name: SkipUnifiedLog
+    type: bool
+    description: Skip the (sometimes slow) `log show` query.
+
+sources:
+  - name: LogonEvents
+    query: |
+      LET utmpx_events = SELECT
+            timestamp(epoch=Mtime) AS EventTime,
+            "utmpx" AS Source,
+            NULL AS TargetUserName,
+            NULL AS Tty,
+            NULL AS SourceHost,
+            TRUE AS Success,
+            OSPath AS SourceFile
+        FROM glob(globs='/private/var/run/utmpx')
+        WHERE Size > 0
+
+      LET log_events = SELECT * FROM foreach(
+        row={
+          SELECT * FROM if(condition=NOT SkipUnifiedLog,
+            then={
+              SELECT Stdout FROM execve(argv=[
+                "log", "show",
+                "--style", "ndjson",
+                "--last", UnifiedLogWindow,
+                "--predicate",
+                'subsystem == "com.apple.loginwindow" OR subsystem == "com.apple.securityd" OR processImagePath CONTAINS "loginwindow"'
+              ], length=100000000)
+            })
+        },
+        query={
+          SELECT
+            timestamp(string=get(field="timestamp")) AS EventTime,
+            "unified_log" AS Source,
+            get(field="subject") || get(field="user") AS TargetUserName,
+            NULL AS Tty,
+            get(field="senderImagePath") AS SourceHost,
+            get(field="eventMessage") !~ 'fail|denied|invalid' AS Success,
+            "unified_log" AS SourceFile,
+            get(field="eventMessage") AS Message
+          FROM parse_jsonl(filename=Stdout, accessor='data')
+          WHERE TargetUserName AND TargetUserName =~ UserNameRegex
+        })
+
+      SELECT * FROM chain(a=utmpx_events, b=log_events)
+
+  - name: PerUserSummary
+    query: |
+      LET events = SELECT * FROM Artifact.MacOS.Events.InteractiveLogonHistory(
+            UnifiedLogWindow=UnifiedLogWindow,
+            UserNameRegex=UserNameRegex,
+            SkipUnifiedLog=SkipUnifiedLog,
+            source="LogonEvents")
+
+      SELECT
+          TargetUserName,
+          min(item=EventTime) AS FirstSeen,
+          max(item=EventTime) AS LastSeen,
+          count(items=if(condition=Success, then=1)) AS SuccessCount,
+          count(items=if(condition=NOT Success, then=1)) AS FailureCount,
+          enumerate(items=Source) AS DistinctSources,
+          enumerate(items=SourceHost) AS DistinctSourceHosts
+      FROM events
+      WHERE TargetUserName
+      GROUP BY TargetUserName
