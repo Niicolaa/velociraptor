@@ -1,0 +1,112 @@
+name: Windows.Triage.Seatbelt
+description: |
+  Wraps GhostPack/Seatbelt for "how did the privilege escalation
+  happen?" triage.
+
+  Seatbelt is a C# host-enumeration tool that collects the same
+  information offensive operators look at before escalating
+  privileges. Running it after a suspected compromise reproduces that
+  view from the defender's side - so you can see exactly which
+  privesc primitives existed on the host at the time of the
+  incident.
+
+  Default `Groups` is a privesc-focused subset:
+
+    UAC                       UAC posture (Always Notify? Token-filter?
+                                 EnableLUA? ConsentPromptBehaviorAdmin?)
+    LSASettings               LSA Protection / Credential Guard tweaks
+    TokenPrivileges           which token privileges the current user holds
+    TokenGroups               group membership of the current token
+    ProcessOwners             owner of every running process
+    Services                  service binary paths, ACLs, unquoted paths,
+                                 modifiable-binary findings
+    AutoRuns                  startup keys and folders (persistence /
+                                 privesc-via-write primitives)
+    LocalGPOs                 local-group-policy overrides
+    LocalGroups               local Administrators / Power Users members
+    LocalUsers                local accounts + last-logon
+    LAPS                      LAPS configuration
+    UserRightAssignments      SeImpersonatePrivilege etc.
+    AppLocker                 AppLocker policy
+    WindowsDefender           Defender state
+    Hotfixes                  installed updates (vs. missing privesc CVEs)
+    ScheduledTasks            tasks running as SYSTEM
+    AlwaysInstallElevated     MSI-installed-as-SYSTEM registry policy
+    SCCM                      SCCM client posture
+    InterestingProcesses      AV / EDR / debugger / Vault processes
+
+  Run with `Groups="all"` for the full Seatbelt set, or pass a
+  comma-separated list of any specific Seatbelt command. Output is
+  parsed from Seatbelt's JSON format into per-command rows.
+
+  NOTE: Seatbelt is treated as malware by most AV/EDR engines because
+  it is a documented red-team tool. Running it on the endpoint may
+  trigger defences - this is intentional. Same precedent as
+  `Windows.Applications.NirsoftBrowserViewer` and `Windows.ActiveDirectory.SharpHound`.
+
+author: "Claude - credential-compromise-detection"
+
+reference:
+  - https://github.com/GhostPack/Seatbelt
+  - https://attack.mitre.org/techniques/T1082/
+  - https://attack.mitre.org/techniques/T1033/
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+tools:
+  - name: Seatbelt
+    url: https://github.com/r3motecontrol/Ghostpack-CompiledBinaries/raw/master/Seatbelt.exe
+    serve_locally: true
+
+parameters:
+  - name: Groups
+    default: "UAC,LSASettings,TokenPrivileges,TokenGroups,ProcessOwners,Services,AutoRuns,LocalGPOs,LocalGroups,LocalUsers,LAPS,UserRightAssignments,AppLocker,WindowsDefender,Hotfixes,ScheduledTasks,AlwaysInstallElevated,SCCM,InterestingProcesses"
+    description: |
+      Comma-separated Seatbelt command names. Pass `all` for every
+      Seatbelt command (slow + very large output) or `user`/`system`/
+      `remote` for Seatbelt's built-in macro groups.
+
+implied_permissions:
+  - EXECVE
+  - FILESYSTEM_WRITE
+
+sources:
+  - name: Findings
+    query: |
+      LET JSONFile <= tempfile(extension='.json')
+
+      LET bin = SELECT OSPath AS BinPath
+        FROM Artifact.Generic.Utils.FetchBinary(ToolName="Seatbelt")
+
+      -- Seatbelt accepts a `+`-separated group list as a single argv,
+      -- e.g.  Seatbelt.exe -group=UAC+LSASettings  -outputformat=json
+      -- Our parameter is comma-separated for readability; we translate
+      -- to plus form before invocation.
+      LET arg_groups = "-group=" + regex_replace(source=Groups, re=",", replace="+")
+
+      LET run = SELECT * FROM foreach(row=bin, query={
+        SELECT Stdout, ReturnCode, JSONFile
+        FROM execve(argv=[
+            BinPath,
+            arg_groups,
+            "-outputformat=json",
+            "-outputfile=" + JSONFile,
+            "-q"
+          ], length=200000000)
+      })
+
+      -- Seatbelt's JSON output is one envelope object per command:
+      --   { "Type": "...", "Data": { ... } | [ {...}, {...} ] }
+      -- We flatten so each row carries the command name + a single
+      -- finding entry from the Data array.
+      LET parsed = SELECT * FROM foreach(row=run, query={
+        SELECT * FROM parse_jsonl(filename=JSONFile)
+      })
+
+      SELECT
+        get(field="Type") AS SeatbeltCommand,
+        if(condition=type(item=get(field="Data")) = "[]interface {}",
+           then=get(field="Data"),
+           else=[get(field="Data")]) AS DataList,
+        get(field="ErrorMessage") AS ErrorMessage
+      FROM parsed

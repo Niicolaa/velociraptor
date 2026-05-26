@@ -17,6 +17,9 @@ precondition: SELECT OS From info() where OS = 'darwin'
 parameters:
   - name: Extract
     type: bool
+  - name: Upload
+    type: bool
+    description: Upload located credential files (e.g. ~/.ssh/known_hosts).
   - name: Verify
     type: bool
   - name: UnifiedLogWindow
@@ -28,7 +31,8 @@ sources:
   - name: CredentialInventory
     query: |
       SELECT * FROM Artifact.MacOS.Credentials.Inventory(
-        Extract=Extract)
+        Extract=Extract,
+        Upload=Upload)
 
   - name: LogonEvents
     query: |

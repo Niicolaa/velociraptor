@@ -20,6 +20,9 @@ parameters:
     type: bool
   - name: Extract
     type: bool
+  - name: Upload
+    type: bool
+    description: Upload located credential files (e.g. ~/.ssh/known_hosts).
   - name: Verify
     type: bool
   - name: SecretScanPaths
@@ -30,7 +33,12 @@ sources:
     query: |
       SELECT * FROM Artifact.Linux.Credentials.Inventory(
         Extract=Extract,
-        RunLaZagne=RunLaZagne)
+        Upload=Upload)
+
+  - name: LaZagneFindings
+    query: |
+      SELECT * FROM if(condition=RunLaZagne,
+        then={ SELECT * FROM Artifact.Linux.Credentials.LaZagne() })
 
   - name: LogonEvents
     query: |

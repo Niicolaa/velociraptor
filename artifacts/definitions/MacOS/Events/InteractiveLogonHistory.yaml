@@ -61,10 +61,12 @@ sources:
           SELECT
             timestamp(string=get(field="timestamp")) AS EventTime,
             "unified_log" AS Source,
-            get(field="subject") || get(field="user") AS TargetUserName,
+            if(condition=get(field="subject"),
+               then=get(field="subject"),
+               else=get(field="user")) AS TargetUserName,
             NULL AS Tty,
             get(field="senderImagePath") AS SourceHost,
-            get(field="eventMessage") !~ 'fail|denied|invalid' AS Success,
+            NOT get(field="eventMessage") =~ 'fail|denied|invalid' AS Success,
             "unified_log" AS SourceFile,
             get(field="eventMessage") AS Message
           FROM parse_jsonl(filename=Stdout, accessor='data')

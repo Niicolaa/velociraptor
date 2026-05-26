@@ -8,17 +8,33 @@ description: |
                                                  exist on this host
                                                  (count + locate, no
                                                  plaintext extraction)
-    2. `Windows.EventLogs.InteractiveLogonHistory`
+    2. `Windows.Credentials.CachedLogons`    - configured + actual
+                                                 cached-domain-credential
+                                                 count (MSCacheV2)
+    3. `Windows.Credentials.CredentialGuard` - CredentialGuard / LSA
+                                                 Protection posture
+                                                 (tells you if LSASS
+                                                 dumping was viable)
+    4. `Windows.EventLogs.InteractiveLogonHistory`
                                               - which users have logged
                                                  in interactively (i.e.
                                                  whose credentials were
                                                  present on this host,
                                                  LogonType 3 excluded)
-    3. `Generic.Detection.SecretScanner`     - TruffleHog filesystem
+    5. `Generic.Detection.SecretScanner`     - TruffleHog filesystem
                                                  scan with --no-verification
+    6. `Windows.Triage.Seatbelt` (opt-in)     - GhostPack/Seatbelt
+                                                 host-enumeration to
+                                                 reconstruct which
+                                                 privesc primitives
+                                                 existed at time of
+                                                 compromise. Off by
+                                                 default - will trigger
+                                                 AV/EDR.
 
   Defaults are conservative:
-    - no LaZagne (`RunLaZagne=false`)
+    - no LaZagne (`RunLaZagne=false`, needs a binary supplied)
+    - no Seatbelt (`RunSeatbelt=false`)
     - no plaintext extraction (`Extract=false`)
     - no TruffleHog verification (`Verify=false`)
     - logon window: last 90 days
@@ -31,8 +47,13 @@ parameters:
     default: 90
   - name: RunLaZagne
     type: bool
+  - name: RunSeatbelt
+    type: bool
   - name: Extract
     type: bool
+  - name: Upload
+    type: bool
+    description: Upload located credential files (e.g. ~/.ssh/known_hosts).
   - name: Verify
     type: bool
   - name: SecretScanPaths
@@ -43,7 +64,20 @@ sources:
     query: |
       SELECT * FROM Artifact.Windows.Credentials.Inventory(
         Extract=Extract,
-        RunLaZagne=RunLaZagne)
+        Upload=Upload)
+
+  - name: LaZagneFindings
+    query: |
+      SELECT * FROM if(condition=RunLaZagne,
+        then={ SELECT * FROM Artifact.Windows.Credentials.LaZagne() })
+
+  - name: CachedLogons
+    query: |
+      SELECT * FROM Artifact.Windows.Credentials.CachedLogons()
+
+  - name: CredentialGuardPosture
+    query: |
+      SELECT * FROM Artifact.Windows.Credentials.CredentialGuard()
 
   - name: LogonEvents
     query: |
@@ -62,3 +96,8 @@ sources:
       SELECT * FROM Artifact.Generic.Detection.SecretScanner(
         ScanPaths=SecretScanPaths,
         Verify=Verify)
+
+  - name: SeatbeltFindings
+    query: |
+      SELECT * FROM if(condition=RunSeatbelt,
+        then={ SELECT * FROM Artifact.Windows.Triage.Seatbelt() })
