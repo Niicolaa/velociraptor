@@ -1,0 +1,212 @@
+name: Custom.Detection.Bumblebee
+description: |
+  Runs Perplexity's `bumblebee` read-only inventory scanner on a Linux
+  or macOS endpoint and returns its NDJSON output (package records,
+  finding records, and the terminal `scan_summary`) as rows.
+
+  Bumblebee answers a narrow supply-chain response question: when an
+  advisory names a package, extension, or version, which developer
+  machines show a match in their on-disk metadata right now? The
+  scanner is read-only - it reads lockfiles, manifests, and dev-tool
+  configs without invoking package managers or touching source code.
+
+  Each emitted row carries the native bumblebee record shape; filter
+  by the `record_type` (or analogous) field in a notebook to separate
+  inventory from findings.
+
+  The scanner binary is fetched as a release tarball from GitHub,
+  hash-verified, and extracted via the system `tar` utility into a
+  temporary directory.
+
+reference:
+  - https://github.com/perplexityai/bumblebee
+
+author: Custom
+
+precondition: SELECT OS From info() WHERE OS = 'linux' OR OS = 'darwin'
+
+required_permissions:
+  - EXECVE
+  - FILESYSTEM_WRITE
+
+tools:
+  - name: BumblebeeTool_linux_amd64
+    url: https://github.com/perplexityai/bumblebee/releases/download/v0.1.1/bumblebee_0.1.1_linux_amd64.tar.gz
+    expected_hash: 0ef1c56c85a67c10f7211883c0eb5fb902de705cc30bbca0bc6f4d60941547da
+    serve_locally: true
+
+  - name: BumblebeeTool_linux_arm64
+    url: https://github.com/perplexityai/bumblebee/releases/download/v0.1.1/bumblebee_0.1.1_linux_arm64.tar.gz
+    expected_hash: 41aad0296bb6c88e746b237ed32eaa3b9b93c48770a51cd66f736f8a4d07a7d1
+    serve_locally: true
+
+  - name: BumblebeeTool_darwin_amd64
+    url: https://github.com/perplexityai/bumblebee/releases/download/v0.1.1/bumblebee_0.1.1_darwin_amd64.tar.gz
+    expected_hash: dd3b2573a974a2786f58215483420fa11cf62b39ff4032693f1440575940dc25
+    serve_locally: true
+
+  - name: BumblebeeTool_darwin_arm64
+    url: https://github.com/perplexityai/bumblebee/releases/download/v0.1.1/bumblebee_0.1.1_darwin_arm64.tar.gz
+    expected_hash: dc0a620e54e85f998c2280b0323763c342973a25eda475d8036d16b01820a2bf
+    serve_locally: true
+
+parameters:
+  - name: Profile
+    type: choices
+    default: baseline
+    choices:
+      - baseline
+      - project
+      - deep
+    description: |
+      Scan scope. `baseline` covers global / well-known paths,
+      `project` adds per-project metadata under the provided roots,
+      and `deep` walks the supplied roots exhaustively (a root is
+      required).
+
+  - name: Roots
+    default: ""
+    description: |
+      Comma-separated filesystem roots to scan. Required for the
+      `deep` profile. Example: `/Users/alice/code,/Users/alice/Developer`.
+
+  - name: Ecosystems
+    default: ""
+    description: |
+      Optional comma-separated ecosystem filter passed to
+      `--ecosystem` (e.g. `npm,pypi,go`). Leave empty to scan all
+      detected ecosystems.
+
+  - name: ExposureCatalogPath
+    default: ""
+    description: |
+      Path on the endpoint to a JSON exposure catalog (file or
+      directory). Used as-is if `ExposureCatalogJSON` is empty. If
+      both are empty and `FindingsOnly` is set, the artifact falls
+      back to the `threat_intel/` directory shipped inside the
+      bumblebee tarball.
+
+  - name: ExposureCatalogJSON
+    default: ""
+    description: |
+      Inline exposure catalog JSON. If non-empty, this content is
+      written to a temp file on the endpoint and used instead of
+      `ExposureCatalogPath`.
+
+  - name: FindingsOnly
+    type: bool
+    description: |
+      Suppress package records and emit only catalog matches. If no
+      catalog path or inline JSON is supplied, defaults to the
+      catalogs bundled in the bumblebee release tarball
+      (`threat_intel/`).
+
+  - name: AllUsers
+    type: bool
+    default: Y
+    description: |
+      macOS only. Expand baseline/project per-user default roots
+      across every real `/Users/<name>/` home - useful when the
+      Velociraptor client runs as root. No effect on Linux.
+      Automatically suppressed when `Profile=deep` or when `Roots`
+      is set, since bumblebee rejects those combinations.
+
+  - name: MaxDuration
+    default: "10m"
+    description: |
+      Hard timeout passed to `--max-duration`. Bumblebee will stop
+      scanning when this elapses.
+
+  - name: ToolInfo
+    type: hidden
+    description: Override tool information.
+
+sources:
+  - query: |
+      LET os_info <= SELECT OS, Architecture FROM info()
+
+      LET tool_name <= "BumblebeeTool_" + os_info[0].OS + "_" + os_info[0].Architecture
+
+      // Download and hash-verify the release tarball.
+      LET tarball <= SELECT * FROM Artifact.Generic.Utils.FetchBinary(
+            ToolName=tool_name,
+            IsExecutable="N",
+            ToolInfo=ToolInfo)
+
+      LET work_dir <= tempdir(remove_last=TRUE)
+
+      // Extract the tarball with the system tar utility. Bumblebee's
+      // GoReleaser places `bumblebee` at the archive root.
+      LET extract <= SELECT * FROM execve(argv=[
+            "tar", "-xzf", tarball[0].OSPath, "-C", work_dir])
+
+      LET binary_path <= path_join(components=[work_dir, "bumblebee"])
+
+      // Materialise an inline catalog if supplied, else fall back to
+      // the user-supplied path. If neither is set but FindingsOnly is
+      // requested, default to the `threat_intel/` directory shipped
+      // inside the bumblebee tarball - bumblebee will load every
+      // *.json catalog in that directory.
+      LET inline_catalog_path <= if(
+            condition=ExposureCatalogJSON,
+            then=copy(accessor="data",
+                      filename=ExposureCatalogJSON,
+                      dest=path_join(components=[work_dir, "catalog.json"])))
+
+      LET bundled_catalog_dir <= if(
+            condition=FindingsOnly,
+            then=path_join(components=[work_dir, "threat_intel"]))
+
+      LET catalog_path <= inline_catalog_path || ExposureCatalogPath || bundled_catalog_dir
+
+      // Build the bumblebee scan command line. We invoke via `sh -c`
+      // so the variable-arity `--root` flag (one occurrence per root)
+      // is trivial to assemble. Paths are single-quoted, with any
+      // embedded single quote escaped as '\'' - the POSIX-safe form.
+      LET shell_quote(s) = "'" + regex_replace(source=s, re="'", replace="'\\''") + "'"
+
+      LET root_pairs <= SELECT "--root " + shell_quote(s=_value) AS f
+            FROM foreach(
+              row=filter(list=split(string=Roots, sep=","), regex=".+"),
+              query={ SELECT _value FROM scope() })
+
+      LET root_flags <= join(array=root_pairs.f, sep=" ")
+
+      // --all-users is rejected by bumblebee when combined with --root
+      // or --profile=deep; suppress it in those cases.
+      LET use_all_users <= AllUsers AND Profile != "deep" AND NOT root_flags
+
+      LET command <= (shell_quote(s=binary_path) +
+                      " scan --profile " + shell_quote(s=Profile) +
+                      " --max-duration " + shell_quote(s=MaxDuration) +
+                      if(condition=Ecosystems,
+                         then=" --ecosystem " + shell_quote(s=Ecosystems), else="") +
+                      if(condition=catalog_path,
+                         then=" --exposure-catalog " + shell_quote(s=catalog_path), else="") +
+                      if(condition=FindingsOnly,
+                         then=" --findings-only", else="") +
+                      if(condition=use_all_users,
+                         then=" --all-users", else="") +
+                      if(condition=root_flags,
+                         then=" " + root_flags, else=""))
+
+      // Run bumblebee. 100MB stdout buffer covers a deep scan.
+      LET result = SELECT * FROM execve(
+            argv=["/bin/sh", "-c", command],
+            length=100000000)
+        WHERE log(
+          message="bumblebee invoked: %v (returned %v); stderr: %v",
+          args=[command, ReturnCode, Stderr])
+
+      // Bumblebee writes one JSON object per line to stdout. Parse
+      // each non-empty line and surface it as a row.
+      SELECT * FROM if(condition=extract,
+      then={
+        SELECT * FROM foreach(
+          row=result,
+          query={
+            SELECT * FROM parse_jsonl(
+              accessor="data",
+              filename=Stdout)
+          })
+      })
