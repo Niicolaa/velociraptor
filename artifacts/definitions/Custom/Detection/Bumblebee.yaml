@@ -101,6 +101,16 @@ parameters:
       catalogs bundled in the bumblebee release tarball
       (`threat_intel/`).
 
+  - name: AllUsers
+    type: bool
+    default: Y
+    description: |
+      macOS only. Expand baseline/project per-user default roots
+      across every real `/Users/<name>/` home - useful when the
+      Velociraptor client runs as root. No effect on Linux.
+      Automatically suppressed when `Profile=deep` or when `Roots`
+      is set, since bumblebee rejects those combinations.
+
   - name: MaxDuration
     default: "10m"
     description: |
@@ -162,6 +172,10 @@ sources:
 
       LET root_flags <= join(array=root_pairs.f, sep=" ")
 
+      // --all-users is rejected by bumblebee when combined with --root
+      // or --profile=deep; suppress it in those cases.
+      LET use_all_users <= AllUsers AND Profile != "deep" AND NOT root_flags
+
       LET command <= (shell_quote(s=binary_path) +
                       " scan --profile " + shell_quote(s=Profile) +
                       " --max-duration " + shell_quote(s=MaxDuration) +
@@ -171,6 +185,8 @@ sources:
                          then=" --exposure-catalog " + shell_quote(s=catalog_path), else="") +
                       if(condition=FindingsOnly,
                          then=" --findings-only", else="") +
+                      if(condition=use_all_users,
+                         then=" --all-users", else="") +
                       if(condition=root_flags,
                          then=" " + root_flags, else=""))
 
