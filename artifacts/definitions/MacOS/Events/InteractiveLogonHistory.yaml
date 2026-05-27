@@ -87,10 +87,10 @@ sources:
           TargetUserName,
           min(item=EventTime) AS FirstSeen,
           max(item=EventTime) AS LastSeen,
-          count(items=if(condition=Success, then=1)) AS SuccessCount,
-          count(items=if(condition=NOT Success, then=1)) AS FailureCount,
-          enumerate(items=Source) AS DistinctSources,
-          enumerate(items=SourceHost) AS DistinctSourceHosts
+          sum(item=if(condition=Success, then=1, else=0)) AS SuccessCount,
+          sum(item=if(condition=NOT Success, then=1, else=0)) AS FailureCount,
+          enumerate(items=Source) AS Sources,
+          enumerate(items=SourceHost) AS SourceHosts
       FROM events
       WHERE TargetUserName
       GROUP BY TargetUserName

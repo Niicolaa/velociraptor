@@ -10,14 +10,16 @@ description: |
                                                   auth.log
     3. `Generic.Detection.SecretScanner`       - TruffleHog filesystem scan
 
-  Conservative defaults: no LaZagne, no plaintext extraction, no
-  TruffleHog verification, last 90 days of logons.
+  Conservative defaults: no plaintext extraction, no TruffleHog
+  verification, last 90 days of logons.
+
+  For deeper extraction call `Linux.Credentials.LaZagne` separately
+  (kept out of this pack so the tool-inventory step does not block
+  the rest of the triage if LaZagne is not provided).
 
 precondition: SELECT OS From info() where OS = 'linux'
 
 parameters:
-  - name: RunLaZagne
-    type: bool
   - name: Extract
     type: bool
   - name: Upload
@@ -34,11 +36,6 @@ sources:
       SELECT * FROM Artifact.Linux.Credentials.Inventory(
         Extract=Extract,
         Upload=Upload)
-
-  - name: LaZagneFindings
-    query: |
-      SELECT * FROM if(condition=RunLaZagne,
-        then={ SELECT * FROM Artifact.Linux.Credentials.LaZagne() })
 
   - name: LogonEvents
     query: |

@@ -2,7 +2,7 @@ name: Windows.Packs.CompromiseAssessment
 description: |
   Triage pack for credential-compromise assessment on a Windows host.
 
-  Bundles three sub-artifacts with safe defaults:
+  Bundles five sub-artifacts with safe defaults:
 
     1. `Windows.Credentials.Inventory`       - what credential stores
                                                  exist on this host
@@ -23,18 +23,14 @@ description: |
                                                  LogonType 3 excluded)
     5. `Generic.Detection.SecretScanner`     - TruffleHog filesystem
                                                  scan with --no-verification
-    6. `Windows.Triage.Seatbelt` (opt-in)     - GhostPack/Seatbelt
-                                                 host-enumeration to
-                                                 reconstruct which
-                                                 privesc primitives
-                                                 existed at time of
-                                                 compromise. Off by
-                                                 default - will trigger
-                                                 AV/EDR.
+
+  For deeper extraction call these companion artifacts separately
+  (kept out of the pack so the tool-inventory step does not block
+  triage when their binaries are not provided):
+    - `Windows.Credentials.LaZagne`
+    - `Windows.Triage.Seatbelt`
 
   Defaults are conservative:
-    - no LaZagne (`RunLaZagne=false`, needs a binary supplied)
-    - no Seatbelt (`RunSeatbelt=false`)
     - no plaintext extraction (`Extract=false`)
     - no TruffleHog verification (`Verify=false`)
     - logon window: last 90 days
@@ -45,10 +41,6 @@ parameters:
   - name: LogonHistoryDays
     type: int64
     default: 90
-  - name: RunLaZagne
-    type: bool
-  - name: RunSeatbelt
-    type: bool
   - name: Extract
     type: bool
   - name: Upload
@@ -65,11 +57,6 @@ sources:
       SELECT * FROM Artifact.Windows.Credentials.Inventory(
         Extract=Extract,
         Upload=Upload)
-
-  - name: LaZagneFindings
-    query: |
-      SELECT * FROM if(condition=RunLaZagne,
-        then={ SELECT * FROM Artifact.Windows.Credentials.LaZagne() })
 
   - name: CachedLogons
     query: |
@@ -96,8 +83,3 @@ sources:
       SELECT * FROM Artifact.Generic.Detection.SecretScanner(
         ScanPaths=SecretScanPaths,
         Verify=Verify)
-
-  - name: SeatbeltFindings
-    query: |
-      SELECT * FROM if(condition=RunSeatbelt,
-        then={ SELECT * FROM Artifact.Windows.Triage.Seatbelt() })

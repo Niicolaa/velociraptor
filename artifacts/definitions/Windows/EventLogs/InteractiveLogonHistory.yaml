@@ -181,10 +181,10 @@ sources:
           TargetDomainName,
           min(item=EventTime) AS FirstSeen,
           max(item=EventTime) AS LastSeen,
-          count(items=if(condition=EventID = 4624, then=1)) AS SuccessCount,
-          count(items=if(condition=EventID = 4625, then=1)) AS FailureCount,
-          count(items=if(condition=EventID = 4672, then=1)) AS PrivilegedLogonCount,
-          enumerate(items=LogonType) AS DistinctLogonTypes,
-          enumerate(items=SourceIP) AS DistinctSourceIPs
+          sum(item=if(condition=EventID = 4624, then=1, else=0)) AS SuccessCount,
+          sum(item=if(condition=EventID = 4625, then=1, else=0)) AS FailureCount,
+          sum(item=if(condition=EventID = 4672, then=1, else=0)) AS PrivilegedLogonCount,
+          enumerate(items=LogonType) AS LogonTypes,
+          enumerate(items=SourceIP) AS SourceIPs
       FROM base
       GROUP BY TargetUserName, TargetDomainName
