@@ -80,8 +80,11 @@ parameters:
   - name: ExposureCatalogPath
     default: ""
     description: |
-      Path on the endpoint to a JSON exposure catalog. Used as-is if
-      `ExposureCatalogJSON` is empty.
+      Path on the endpoint to a JSON exposure catalog (file or
+      directory). Used as-is if `ExposureCatalogJSON` is empty. If
+      both are empty and `FindingsOnly` is set, the artifact falls
+      back to the `threat_intel/` directory shipped inside the
+      bumblebee tarball.
 
   - name: ExposureCatalogJSON
     default: ""
@@ -93,8 +96,10 @@ parameters:
   - name: FindingsOnly
     type: bool
     description: |
-      Suppress package records and emit only catalog matches. Requires
-      a catalog (path or inline JSON) to be set.
+      Suppress package records and emit only catalog matches. If no
+      catalog path or inline JSON is supplied, defaults to the
+      catalogs bundled in the bumblebee release tarball
+      (`threat_intel/`).
 
   - name: MaxDuration
     default: "10m"
@@ -128,14 +133,21 @@ sources:
       LET binary_path <= path_join(components=[work_dir, "bumblebee"])
 
       // Materialise an inline catalog if supplied, else fall back to
-      // the user-supplied path.
+      // the user-supplied path. If neither is set but FindingsOnly is
+      // requested, default to the `threat_intel/` directory shipped
+      // inside the bumblebee tarball - bumblebee will load every
+      // *.json catalog in that directory.
       LET inline_catalog_path <= if(
             condition=ExposureCatalogJSON,
             then=copy(accessor="data",
                       filename=ExposureCatalogJSON,
                       dest=path_join(components=[work_dir, "catalog.json"])))
 
-      LET catalog_path <= inline_catalog_path || ExposureCatalogPath
+      LET bundled_catalog_dir <= if(
+            condition=FindingsOnly,
+            then=path_join(components=[work_dir, "threat_intel"]))
+
+      LET catalog_path <= inline_catalog_path || ExposureCatalogPath || bundled_catalog_dir
 
       // Build the bumblebee scan command line. We invoke via `sh -c`
       // so the variable-arity `--root` flag (one occurrence per root)
