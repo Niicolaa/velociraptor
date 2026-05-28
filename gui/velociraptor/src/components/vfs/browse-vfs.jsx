@@ -102,7 +102,7 @@ class VFSViewer extends Component {
             <SplitPane split="vertical"
                        defaultSize="20%">
               <VeloFileTree client={this.props.client}
-                            version={this.props.node && this.props.node.version}
+                            version={this.state.version}
                             className="file-tree"
                             updateVFSPath={this.updateVFSPath}
                             updateCurrentNode={this.updateCurrentNode}

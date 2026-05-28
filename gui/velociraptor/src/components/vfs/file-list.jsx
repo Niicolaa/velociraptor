@@ -212,6 +212,9 @@ class VeloFileList extends Component {
         if (this.recrusive_interval) {
             clearInterval(this.recrusive_interval);
         }
+        if (this.sync_dir_interval) {
+            clearInterval(this.sync_dir_interval);
+        }
     }
 
     updateCurrentFile = (row) => {
@@ -430,6 +433,32 @@ class VeloFileList extends Component {
                 this.setState({sync_dir_version: this.props.version});
                 return;
             }
+
+            let flow_id = response.data.flow_id;
+
+            if (this.sync_dir_interval) {
+                clearInterval(this.sync_dir_interval);
+            }
+
+            // Poll for flow completion so the UI refreshes as soon
+            // as the refresh artifact finishes, rather than waiting
+            // for the parent's periodic stat to coincidentally
+            // observe the version bump.
+            this.sync_dir_interval = setInterval(() => {
+                api.get("v1/GetFlowDetails", {
+                    client_id: this.props.client.client_id,
+                    flow_id: flow_id,
+                }, this.source.token).then((response) => {
+                    let context = response.data && response.data.context;
+                    if (context && is_running(context.state)) {
+                        return;
+                    }
+
+                    clearInterval(this.sync_dir_interval);
+                    this.sync_dir_interval = undefined;
+                    this.props.bumpVersion();
+                });
+            }, POLL_TIME);
         });
     }
 

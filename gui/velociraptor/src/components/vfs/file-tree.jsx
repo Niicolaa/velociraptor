@@ -232,19 +232,23 @@ class VeloFileTree extends Component {
 
         // Deactive the current node we are on.
         const {cursor, data} = this.state;
-        if (cursor) {
+        const wasActive = cursor === node;
+        if (cursor && !wasActive) {
             cursor.active = false;
         }
 
-        this.setState(() => ({cursor: node, data: Object.assign({}, data)}));
-
         node.active = true;
-        node.toggled = !node.toggled;
 
-        // Do not fetch new data when we hide the directory.
-        if (node.known && !node.toggled) {
-            return;
+        // Only toggle expand/collapse when re-clicking the already
+        // selected node. Selecting a different node always expands it
+        // so its contents are visible.
+        if (wasActive) {
+            node.toggled = !node.toggled;
+        } else {
+            node.toggled = true;
         }
+
+        this.setState(() => ({cursor: node, data: Object.assign({}, data)}));
 
         // Update the new vfs path
         if (node.path) {
@@ -261,6 +265,14 @@ class VeloFileTree extends Component {
         setItem(schema.CurrentVFSPathKey, url_path);
         this.props.history.push("/vfs/" + client_id +
                                 EncodePathInURL(url_path));
+
+        // Do not fetch new data when we hide the directory, but still
+        // propagate the selection so the file list / stats panes
+        // reflect the current node.
+        if (node.known && !node.toggled) {
+            this.props.updateCurrentNode(node);
+            return;
+        }
 
         node.known = false;
         this.updateComponent(node, node.path, []);
