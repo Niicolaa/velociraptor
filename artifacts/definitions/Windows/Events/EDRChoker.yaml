@@ -1,0 +1,61 @@
+name: Windows.Events.EDRChoker
+author: "@niicolaa"
+description: |
+  Monitors for the creation of **Policy-based Quality of Service (QoS)** rules
+  that throttle the network bandwidth of security agents (EDR/AV) - the
+  technique used by the offensive tool
+  [EDRChoker](https://github.com/TwoSevenOneT/EDRChoker).
+
+  EDRChoker abuses the Windows `pacer.sys` packet scheduler to apply a hard
+  bandwidth cap on an EDR's executable, so the agent keeps running but its
+  network calls always time out. See the `Windows.Detection.EDRChoker` artifact
+  for the full technique description.
+
+  This event monitor periodically enumerates QoS policies (via WMI and the
+  registry persistent store) by calling `Windows.Detection.EDRChoker`, diffs
+  the results over `Period`, and raises an alert whenever a NEW suspicious
+  throttle policy appears - one that throttles a process matching
+  `EDRProcessRegex` or whose throttle rate is below `ThrottleRateThreshold`.
+
+  MITRE ATT&CK: T1562.001 - Impair Defenses: Disable or Modify Tools.
+
+reference:
+  - https://github.com/TwoSevenOneT/EDRChoker
+  - https://attack.mitre.org/techniques/T1562/001/
+
+type: CLIENT_EVENT
+
+precondition: SELECT OS FROM info() WHERE OS = 'windows'
+
+parameters:
+  - name: Period
+    description: How often (in seconds) to poll the QoS policy stores.
+    type: int
+    default: 60
+
+  - name: EDRProcessRegex
+    description: Target application names that, when throttled, are treated as suspicious.
+    type: regex
+    default: "MsMpEng|MsSense|SenseIR|SenseCncProxy|NisSrv|elastic-agent|elastic-endpoint|winlogbeat|filebeat|SentinelAgent|SentinelServiceHost|SentinelStaticEngine|CSFalconService|CSFalconContainer|RepMgr|RepUx|RepWSC|cb|cyserver|CylanceSvc|CyOptics|cortex|cyverak|cytool|traps|SophosED|SAVService|SEDService|wdavdaemon|xagt|sysmon"
+
+  - name: ThrottleRateThreshold
+    description: Any QoS policy with an active throttle below this rate is treated as suspicious (the EDRChoker default is ~8).
+    type: int64
+    default: 131072
+
+  - name: AlertName
+    default: "T1562.001 - QoS bandwidth throttling of security agent (EDRChoker)"
+
+sources:
+  - query: |
+      -- Reuse the detection logic so the two artifacts stay in sync.
+      LET policies = SELECT * FROM Artifact.Windows.Detection.EDRChoker(
+            EDRProcessRegex=EDRProcessRegex,
+            ThrottleRateThreshold=ThrottleRateThreshold)
+        WHERE Suspicious
+
+      SELECT *,
+          alert(name=AlertName, PolicyName=PolicyName, TargetApp=TargetApp,
+                ThrottleRate=ThrottleRate, Store=Store, Location=Location) AS AlertSent
+      FROM diff(query=policies, period=Period, key="PolicyName")
+      WHERE Diff = "added"

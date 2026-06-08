@@ -1,0 +1,97 @@
+name: Windows.Detection.EDRChoker
+author: "@niicolaa"
+description: |
+  Hunts for **Policy-based Quality of Service (QoS)** rules that throttle the
+  network bandwidth of security agents (EDR/AV) - the technique used by the
+  offensive tool [EDRChoker](https://github.com/TwoSevenOneT/EDRChoker).
+
+  Rather than killing processes, removing drivers or tampering with services,
+  EDRChoker abuses the built-in Windows `pacer.sys` packet scheduler to apply a
+  hard bandwidth cap on the EDR's executable. The agent keeps running but its
+  network calls always time out, so it can no longer communicate with its
+  backend. EDRChoker creates these rules through the WMI class
+  `MSFT_NetQosPolicySettingData` (namespace `ROOT/StandardCimv2`,
+  equivalent to `New-NetQosPolicy`) with:
+
+    - a randomly generated 8-character policy `Name`
+    - `AppPathNameMatchCondition` = the target EDR executable
+    - `ThrottleRateAction` = 8 (an absurdly low rate - a strong indicator)
+
+  The rules also surface in the registry persistent store under
+  `HKLM\SOFTWARE\Policies\Microsoft\Windows\QoS\<PolicyName>` and persist
+  across reboots.
+
+  This artifact enumerates every QoS policy from BOTH the live WMI store and
+  the registry persistent store, and flags a policy as `Suspicious` when its
+  throttle rate is below `ThrottleRateThreshold` OR its target application
+  matches `EDRProcessRegex`. QoS throttle policies are very rare on endpoints,
+  so a policy that throttles a security agent at a few bytes per second is
+  almost certainly malicious. Set `AllPolicies` to also return benign policies.
+
+  MITRE ATT&CK: T1562.001 - Impair Defenses: Disable or Modify Tools.
+
+reference:
+  - https://github.com/TwoSevenOneT/EDRChoker
+  - https://learn.microsoft.com/en-us/windows-server/networking/technologies/qos/qos-policy-top
+  - https://attack.mitre.org/techniques/T1562/001/
+
+precondition: SELECT OS FROM info() WHERE OS = 'windows'
+
+parameters:
+  - name: EDRProcessRegex
+    description: Target application names that, when throttled, are treated as suspicious.
+    type: regex
+    default: "MsMpEng|MsSense|SenseIR|SenseCncProxy|NisSrv|elastic-agent|elastic-endpoint|winlogbeat|filebeat|SentinelAgent|SentinelServiceHost|SentinelStaticEngine|CSFalconService|CSFalconContainer|RepMgr|RepUx|RepWSC|cb|cyserver|CylanceSvc|CyOptics|cortex|cyverak|cytool|traps|SophosED|SAVService|SEDService|wdavdaemon|xagt|sysmon"
+
+  - name: ThrottleRateThreshold
+    description: Any QoS policy with an active throttle below this rate is treated as suspicious (the EDRChoker default is ~8).
+    type: int64
+    default: 131072
+
+  - name: QoSRegistryGlob
+    description: Registry location of the QoS policy persistent store.
+    default: HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows\QoS\*
+
+  - name: AllPolicies
+    description: Return every QoS policy, not just suspicious ones.
+    type: bool
+
+sources:
+  - query: |
+      -- A throttle is "active and low" when it is set (non-zero) and below the
+      -- threshold. Unset throttles use a very large sentinel value and so are
+      -- naturally excluded by the upper bound.
+      LET is_low_throttle(Rate) = Rate AND Rate > 0 AND Rate < ThrottleRateThreshold
+
+      -- Live store: exactly what EDRChoker writes via WMI.
+      LET from_wmi = SELECT
+            "WMI" AS Store,
+            Name AS PolicyName,
+            AppPathNameMatchCondition AS TargetApp,
+            ThrottleRateAction AS ThrottleRate,
+            IPProtocolMatchCondition AS Protocol,
+            NetworkProfile AS NetworkProfile,
+            InstanceID AS Location,
+            NULL AS Mtime,
+            (is_low_throttle(Rate=ThrottleRateAction)
+                 OR AppPathNameMatchCondition =~ EDRProcessRegex) AS Suspicious
+        FROM wmi(
+            namespace="ROOT/StandardCimv2",
+            query="SELECT * FROM MSFT_NetQosPolicySettingData")
+
+      -- Persistent store: catches GPO/registry-backed policies.
+      LET from_registry = SELECT
+            "Registry" AS Store,
+            Key.OSPath.Basename AS PolicyName,
+            `Application Name` AS TargetApp,
+            atoi(string=`Throttle Rate`) AS ThrottleRate,
+            `Protocol` AS Protocol,
+            NULL AS NetworkProfile,
+            Key.OSPath.Path AS Location,
+            Key.Mtime AS Mtime,
+            (is_low_throttle(Rate=atoi(string=`Throttle Rate`))
+                 OR `Application Name` =~ EDRProcessRegex) AS Suspicious
+        FROM read_reg_key(globs=QoSRegistryGlob, accessor="registry")
+
+      SELECT * FROM chain(a=from_wmi, b=from_registry)
+      WHERE Suspicious OR AllPolicies
