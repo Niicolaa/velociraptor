@@ -1,0 +1,84 @@
+name: Windows.Detection.EDR.Monitor
+author: "@niicolaa"
+description: |
+  Continuous monitoring companion to `Windows.Detection.EDR.Health` and
+  `Windows.Detection.EDR.KillerTechniques`. Runs as a client event artifact
+  and emits a row only when something relevant happens, so it stays quiet
+  while Defender is healthy.
+
+  Three named sources:
+
+  - **ServiceTampering** - watches the System event log live for Defender /
+    Sense services being stopped or unexpectedly terminating (7036 / 7034)
+    and for kernel-driver service installs (7045), the footprint of a
+    BYOVD dropper.
+
+  - **DefenderEvents** - watches the Defender Operational channel live for
+    real-time protection being disabled (5001), configuration changes
+    (5007), scanning being turned off (5010/5012) and threats being
+    detected/blocked (1116/1117). This is the real-time signal that an
+    EDR-killer is acting on the host.
+
+  - **HealthHeartbeat** - re-runs the full `Windows.Detection.EDR.Health`
+    verdict on a timer and emits a row *only* when the host comes back
+    unhealthy. This is the catch-all tripwire that covers techniques the
+    event-log watches do not (network isolation, tamper protection toggled
+    via API, processes killed in a loop, etc.).
+
+reference:
+  - https://attack.mitre.org/techniques/T1562/001/
+  - https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus
+
+type: CLIENT_EVENT
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+parameters:
+  - name: SystemLogFile
+    default: "C:/Windows/System32/Winevt/Logs/System.evtx"
+  - name: DefenderLogFile
+    description: Defender Operational channel. The "%4" is the on-disk encoding of "Windows Defender/Operational".
+    default: "C:/Windows/System32/Winevt/Logs/Microsoft-Windows-Windows Defender%4Operational.evtx"
+  - name: HeartbeatPeriod
+    type: int64
+    default: 300
+    description: How often (seconds) to re-run the Defender health verdict.
+
+sources:
+  - name: ServiceTampering
+    query: |
+      SELECT System.TimeCreated.SystemTime AS Timestamp,
+             System.EventID.Value AS EventID,
+             EventData.param1 AS ServiceName,
+             EventData.ImagePath AS ImagePath,
+             EventData.ServiceName AS InstalledService,
+             EventData AS _EventData,
+             System AS _System
+      FROM watch_evtx(filename=SystemLogFile)
+      WHERE EventID in (7034, 7036, 7045)
+        AND serialize(item=EventData) =~ "(?i)(defend|sense|antimalware|MsMpEng|MsSense|WdNisSvc|WdFilter|\\.sys)"
+
+  - name: DefenderEvents
+    query: |
+      SELECT System.TimeCreated.SystemTime AS Timestamp,
+             System.EventID.Value AS EventID,
+             EventData AS _EventData,
+             System AS _System
+      FROM watch_evtx(filename=DefenderLogFile)
+      WHERE EventID in (5001, 5004, 5007, 5010, 5012, 1006, 1015, 1116, 1117)
+
+  - name: HealthHeartbeat
+    query: |
+      SELECT * FROM foreach(
+        row={
+          SELECT * FROM clock(period=HeartbeatPeriod, start=now())
+        },
+        query={
+          SELECT now() AS Timestamp, Healthy, Issues, IssueDetail
+          FROM Artifact.Windows.Detection.EDR.Health()
+          WHERE NOT Healthy
+        })
+
+column_types:
+  - name: Timestamp
+    type: timestamp

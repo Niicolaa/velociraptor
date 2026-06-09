@@ -1,0 +1,217 @@
+name: Windows.Detection.EDR.KillerTechniques
+author: "@niicolaa"
+description: |
+  Hunts for the host-side footprint of the known families of EDR-killer /
+  defense-evasion tooling (EDRKillShifter, AuKill/Backstab, Terminator /
+  RTCore-style killers, etc.). Where `Windows.Detection.EDR.Health` answers
+  *"is Defender still working?"*, this artifact answers *"how was it
+  attacked?"* by looking for the techniques themselves.
+
+  It is organised into one named source per technique family:
+
+  - **NetworkTampering** - Category 1: cutting the agent off the network.
+    Proxy hijack (per-user Internet Settings), poisoned hosts file,
+    Windows Firewall block rules naming EDR binaries, DNS cache entries for
+    Microsoft/EDR domains pointing at loopback, and (optional, gated)
+    a Windows Filtering Platform dump via `netsh wfp` looking for Block
+    filters. Velociraptor has no native WFP plugin, so WFP enumeration uses
+    execve and is off by default.
+
+  - **VulnerableDrivers** - Category 2/3: Bring-Your-Own-Vulnerable-Driver.
+    Enumerates loaded kernel drivers and matches them against an embedded
+    list of known-abused signed drivers (LOLDrivers). Matching is by SHA256
+    when a hash is supplied, otherwise by file name as a weaker fallback.
+
+  - **SuspiciousDriverServices** - the dropper footprint: kernel-driver
+    service entries (Type=1) whose ImagePath lives outside the normal
+    System32\drivers location (Temp, Users, ProgramData, ...).
+
+  - **TamperEvents** - point-in-time forensic evidence in the event logs:
+    Defender/Sense services being stopped, driver service installs, and
+    Defender Operational events for real-time protection being disabled or
+    threats being detected/blocked. Live coverage of the same signals lives
+    in `Windows.Detection.EDR.Monitor`.
+
+  Note: the embedded vulnerable-driver list ships with the well-known file
+  names populated but the SHA256 column left blank on purpose - shipping
+  stale hashes invites false confidence. Populate the hashes from
+  https://www.loldrivers.io/ (or wire in a fresher feed) for hash-precise
+  matching; name matching works out of the box.
+
+reference:
+  - https://attack.mitre.org/techniques/T1562/001/
+  - https://attack.mitre.org/techniques/T1562/004/
+  - https://attack.mitre.org/techniques/T1014/
+  - https://www.loldrivers.io/
+
+type: CLIENT
+
+implied_permissions:
+  - EXECVE
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+parameters:
+  - name: EnableWFPEnum
+    type: bool
+    description: |
+      Enumerate Windows Filtering Platform filters via "netsh wfp show
+      filters" looking for Block actions. Requires EXECVE. Off by default.
+  - name: EDRProcessRegex
+    type: regex
+    default: "(?i)(MsMpEng|MsSense|NisSrv|SenseIR|SenseCncProxy|SenseNdr|SecurityHealthService|MpCmdRun)"
+    description: Regex of EDR/AV binary names to look for inside firewall block rules and WFP filters.
+  - name: SuspiciousDriverPathRegex
+    type: regex
+    default: "(?i)\\\\(Users|Temp|ProgramData|AppData|Downloads|Public|Windows\\\\Temp)\\\\"
+    description: A kernel driver loading from one of these locations is suspicious.
+  - name: SystemLogFile
+    default: "C:/Windows/System32/Winevt/Logs/System.evtx"
+  - name: DefenderLogFile
+    description: Defender Operational channel. The "%4" is the on-disk encoding of "Windows Defender/Operational".
+    default: "C:/Windows/System32/Winevt/Logs/Microsoft-Windows-Windows Defender%4Operational.evtx"
+  - name: HostsFile
+    default: "C:/Windows/System32/drivers/etc/hosts"
+  - name: VulnerableDriverList
+    type: csv
+    description: |
+      Known-abused / vulnerable signed drivers. Match is by SHA256 when set,
+      otherwise by Name. Populate SHA256 from loldrivers.io for precise hits.
+    default: |
+      SHA256,Name,Category,Reference
+      ,RTCore64.sys,BYOVD,MSI Afterburner - AuKill/Terminator/ScRipt killers
+      ,rtcore64.sys,BYOVD,MSI Afterburner duplicate-case
+      ,dbutil_2_3.sys,BYOVD,Dell dbutil - CVE-2021-21551
+      ,DBUtil_2_3.sys,BYOVD,Dell dbutil - CVE-2021-21551
+      ,dbutildrv2.sys,BYOVD,Dell dbutildrv2
+      ,gdrv.sys,BYOVD,Gigabyte gdrv
+      ,iqvw64e.sys,BYOVD,Intel iQVW64 - Slingshot
+      ,viragt64.sys,BYOVD,TG Soft ViR.IT - used by AvosLocker
+      ,truesight.sys,BYOVD,Adlice/RogueKiller TrueSight - killer loops
+      ,mhyprot2.sys,BYOVD,Genshin Impact anti-cheat - process killer
+      ,procexp152.sys,BYOVD,Process Explorer driver - abused for handle/term
+      ,aswarpot.sys,BYOVD,Avast Anti-Rootkit - abused by AvosLocker/Cuba
+      ,wnbios64.sys,BYOVD,WnBios - generic BYOVD
+      ,kavParts.sys,BYOVD,Kaspersky driver - abused
+      ,asrdrv101.sys,BYOVD,ASRock - abused
+      ,ene.sys,BYOVD,ENE Technology - abused
+
+sources:
+  - name: NetworkTampering
+    query: |
+      LET ProxyKeys = SELECT OSPath, Name, Data.value AS Value
+        FROM glob(globs=[
+          "HKEY_USERS\\*\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ProxyServer",
+          "HKEY_USERS\\*\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ProxyEnable",
+          "HKEY_USERS\\*\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\AutoConfigURL"
+        ], accessor="registry")
+
+      LET FwRules = SELECT OSPath, Name, Data.value AS Rule
+        FROM glob(globs="HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules\\*",
+                  accessor="registry")
+        WHERE Rule =~ "Action=Block" AND Rule =~ EDRProcessRegex
+
+      LET HostsHijack = SELECT Line FROM parse_lines(filename=HostsFile)
+        WHERE NOT Line =~ "^\\s*#"
+          AND Line =~ "(?i)(microsoft|windows|defender|wdcp|wd-prod|events\\.data|smartscreen|crowdstrike|sentinelone|cylance|sophos|update)"
+          AND Line =~ "(127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1)"
+
+      LET DnsPoison = SELECT Entry, Data FROM wmi(
+          query="SELECT * FROM MSFT_DNSClientCache",
+          namespace="root/StandardCimv2")
+        WHERE Entry =~ "(?i)(microsoft|defender|windows|crowdstrike|sentinelone|sophos|cylance)"
+          AND Data =~ "(127\\.0\\.0\\.1|0\\.0\\.0\\.0)"
+
+      LET WfpBlocks = SELECT * FROM if(condition=EnableWFPEnum, then={
+          SELECT "netsh wfp show filters" AS Command,
+                 Stdout =~ "(?i)Block" AS ContainsBlockFilters,
+                 Stdout AS Output
+          FROM execve(argv=["netsh", "wfp", "show", "filters", "file=-"], length=20000000)
+        })
+
+      SELECT * FROM chain(
+        proxy={ SELECT "ProxyHijack" AS Technique, Name AS Indicator,
+                       format(format="%v = %v", args=[OSPath, Value]) AS Evidence
+                FROM ProxyKeys
+                WHERE (Name = "ProxyEnable" AND Value = 1) OR (Name != "ProxyEnable" AND Value) },
+        fw={ SELECT "FirewallBlockRule" AS Technique, Name AS Indicator, Rule AS Evidence
+             FROM FwRules },
+        hosts={ SELECT "HostsFileHijack" AS Technique, "hosts" AS Indicator, Line AS Evidence
+                FROM HostsHijack },
+        dns={ SELECT "DnsCachePoison" AS Technique, Entry AS Indicator,
+                     format(format="%v -> %v", args=[Entry, Data]) AS Evidence
+              FROM DnsPoison },
+        wfp={ SELECT "WFPBlockFilters" AS Technique, "netsh wfp" AS Indicator,
+                     Output AS Evidence
+              FROM WfpBlocks WHERE ContainsBlockFilters })
+
+  - name: VulnerableDrivers
+    query: |
+      LET vuln <= SELECT lowcase(string=Name) AS LName,
+                         upcase(string=SHA256) AS LSHA, Category, Reference
+        FROM VulnerableDriverList
+
+      LET vnames <= vuln.LName
+      LET vshas <= filter(list=vuln.LSHA, regex=".")
+
+      LET drivers = SELECT Name, PathName, State, Started,
+            hash(path=PathName) AS Hash,
+            authenticode(filename=PathName) AS Sig
+        FROM wmi(query="select * from Win32_SystemDriver", namespace="ROOT\\CIMV2")
+        WHERE PathName
+
+      SELECT Name, PathName, State, Started,
+             Hash.SHA256 AS SHA256,
+             Sig.Trusted AS SignatureTrust,
+             Sig.IssuerName AS Issuer,
+             { SELECT format(format="%v - %v", args=[Category, Reference]) FROM vuln
+               WHERE LName = lowcase(string=Name)
+                  OR (LSHA AND LSHA = upcase(string=Hash.SHA256))
+               LIMIT 1 } AS LOLDriverMatch
+      FROM drivers
+      WHERE lowcase(string=Name) in vnames
+         OR upcase(string=Hash.SHA256) in vshas
+
+  - name: SuspiciousDriverServices
+    query: |
+      SELECT Key.Name AS ServiceName,
+             Key.ModTime AS ServiceModified,
+             Type AS ServiceType,
+             Start AS StartType,
+             ImagePath,
+             regex_replace(source=ImagePath,
+                           re="^(\\\\\\?\\?\\\\|\\\\SystemRoot\\\\|System32\\\\)",
+                           replace="") AS CleanedPath
+      FROM read_reg_key(globs="HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\*")
+      WHERE Type = 1
+        AND ImagePath
+        AND ImagePath =~ SuspiciousDriverPathRegex
+
+  - name: TamperEvents
+    query: |
+      LET SystemEvents = SELECT
+            System.TimeCreated.SystemTime AS Timestamp,
+            "System" AS Channel,
+            System.EventID.Value AS EventID,
+            EventData AS EventData
+        FROM parse_evtx(filename=SystemLogFile)
+        WHERE EventID in (7034, 7036, 7045)
+          AND serialize(item=EventData) =~ "(?i)(defend|sense|antimalware|MsMpEng|MsSense|WdNisSvc|WdFilter|\\.sys)"
+
+      LET DefenderEvents = SELECT
+            System.TimeCreated.SystemTime AS Timestamp,
+            "Defender/Operational" AS Channel,
+            System.EventID.Value AS EventID,
+            EventData AS EventData
+        FROM parse_evtx(filename=DefenderLogFile)
+        WHERE EventID in (5001, 5004, 5007, 5010, 5012, 1006, 1015, 1116, 1117)
+
+      SELECT * FROM chain(
+        sys={ SELECT * FROM SystemEvents },
+        def={ SELECT * FROM DefenderEvents })
+
+column_types:
+  - name: Timestamp
+    type: timestamp
+  - name: ServiceModified
+    type: timestamp

@@ -1,0 +1,187 @@
+name: Windows.Detection.EDR.Health
+author: "@niicolaa"
+description: |
+  Verifies that Microsoft Defender Antivirus and Microsoft Defender for
+  Endpoint (EDR / "Sense") are actually running and protecting the host.
+
+  This is a point-in-time health/tripwire check. It collects the live
+  Defender protection state and returns a single **Verdict** row with a
+  `Healthy` boolean and a list of `Issues`, plus a **Detail** source that
+  breaks every individual check out into its own row for triage.
+
+  It is designed to catch the *result* of EDR-killer / defense-evasion
+  activity (real-time protection turned off, services stopped or disabled,
+  core processes missing, tamper protection disabled, huge exclusion lists,
+  stale signatures, policy overrides) regardless of which technique was
+  used to get there. To detect *how* the host was attacked, pair this with
+  `Windows.Detection.EDR.KillerTechniques`. For continuous coverage use
+  `Windows.Detection.EDR.Monitor`, which re-runs this artifact on a timer.
+
+  The service and process lists are parameters, so the same artifact can be
+  pointed at other EDR products later. Services/processes that are not
+  installed simply will not be reported (same philosophy as
+  `Windows.System.CriticalServices`).
+
+reference:
+  - https://attack.mitre.org/techniques/T1562/001/
+  - https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-windows
+  - https://learn.microsoft.com/en-us/powershell/module/defender/get-mpcomputerstatus
+
+type: CLIENT
+
+precondition: SELECT OS From info() where OS = 'windows'
+
+parameters:
+  - name: MaxSignatureAgeDays
+    type: int64
+    default: 7
+    description: Flag the host as unhealthy when AV signatures are older than this many days.
+  - name: MaxExclusions
+    type: int64
+    default: 50
+    description: Flag the host when the combined Defender exclusion list is larger than this (a common way to neuter AV without disabling it).
+  - name: DefenderServices
+    type: csv
+    description: Defender services that must be running. Role is informational (AV vs EDR).
+    default: |
+      ServiceName,Role
+      WinDefend,AV
+      WdNisSvc,AV
+      WdFilter,AV
+      WdBoot,AV
+      Sense,EDR
+      SecurityHealthService,Health
+  - name: DefenderProcesses
+    type: csv
+    description: Core Defender processes that should be present.
+    default: |
+      ProcessName
+      MsMpEng.exe
+      MsSense.exe
+      NisSrv.exe
+      SecurityHealthService.exe
+  - name: RunPowershellCrossCheck
+    type: bool
+    description: |
+      Also run "Get-MpComputerStatus" via PowerShell and attach its raw
+      JSON. Requires the EXECVE permission. Off by default - the native
+      WMI checks already cover the same data without spawning a process.
+
+export: |
+  -- Live Defender protection state (root/Microsoft/Windows/Defender).
+  -- Empty result means Defender is not installed or WMI is blocked.
+  LET MpStatus <= SELECT * FROM wmi(
+      query="SELECT * FROM MSFT_MpComputerStatus",
+      namespace="root/Microsoft/Windows/Defender")
+
+  LET MpPref <= SELECT * FROM wmi(
+      query="SELECT * FROM MSFT_MpPreference",
+      namespace="root/Microsoft/Windows/Defender")
+
+  LET WantedServices <= SELECT ServiceName, Role FROM DefenderServices
+
+  LET ServiceState <= SELECT Name, State, StartMode
+      FROM Artifact.Windows.System.Services()
+      WHERE Name in WantedServices.ServiceName
+
+  LET RunningProcs <= SELECT lowcase(string=Name) AS LName FROM pslist()
+
+  LET MissingProcs <= SELECT ProcessName FROM DefenderProcesses
+      WHERE NOT lowcase(string=ProcessName) in RunningProcs.LName
+
+  -- Policy / tamper-protection registry overrides.
+  LET PolicyKeys <= SELECT OSPath, Name, Data.value AS Value
+      FROM glob(globs=[
+        "HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\DisableAntiSpyware",
+        "HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableRealtimeMonitoring",
+        "HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection\\DisableBehaviorMonitoring",
+        "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Defender\\Features\\TamperProtection"
+      ], accessor="registry")
+
+sources:
+  - name: Verdict
+    query: |
+      -- Each branch emits zero or more issue rows; chain concatenates them.
+      LET Issues = SELECT * FROM chain(
+        a={ SELECT "DefenderStatusUnavailable" AS Check,
+                   "MSFT_MpComputerStatus returned no data - Defender not installed or WMI blocked" AS Detail
+            FROM scope() WHERE len(list=MpStatus) = 0 },
+        b={ SELECT "RealtimeProtectionDisabled" AS Check,
+                   "Defender real-time protection is OFF" AS Detail
+            FROM MpStatus WHERE NOT RealTimeProtectionEnabled },
+        c={ SELECT "AntivirusDisabled" AS Check, "Antivirus engine disabled" AS Detail
+            FROM MpStatus WHERE NOT AntivirusEnabled },
+        d={ SELECT "AntispywareDisabled" AS Check, "Antispyware engine disabled" AS Detail
+            FROM MpStatus WHERE NOT AntispywareEnabled },
+        e={ SELECT "BehaviorMonitorDisabled" AS Check, "Behavior monitoring disabled" AS Detail
+            FROM MpStatus WHERE NOT BehaviorMonitorEnabled },
+        f={ SELECT "OnAccessProtectionDisabled" AS Check, "On-access protection disabled" AS Detail
+            FROM MpStatus WHERE NOT OnAccessProtectionEnabled },
+        g={ SELECT "AMServiceDisabled" AS Check, "Antimalware service not enabled" AS Detail
+            FROM MpStatus WHERE NOT AMServiceEnabled },
+        h={ SELECT "TamperProtectionDisabled" AS Check, "Tamper protection is OFF" AS Detail
+            FROM MpStatus WHERE NOT IsTamperProtected },
+        i={ SELECT "NotActiveMode" AS Check,
+                   format(format="Defender AMRunningMode is %v (not Normal active mode)", args=AMRunningMode) AS Detail
+            FROM MpStatus WHERE AMRunningMode AND NOT AMRunningMode =~ "Normal" },
+        j={ SELECT "SignaturesStale" AS Check,
+                   format(format="AV signatures are %v days old", args=AntivirusSignatureAge) AS Detail
+            FROM MpStatus WHERE AntivirusSignatureAge > MaxSignatureAgeDays },
+        k={ SELECT "PrefRealtimeDisabled" AS Check, "MpPreference DisableRealtimeMonitoring is set" AS Detail
+            FROM MpPref WHERE DisableRealtimeMonitoring },
+        l={ SELECT "PrefBehaviorDisabled" AS Check, "MpPreference DisableBehaviorMonitoring is set" AS Detail
+            FROM MpPref WHERE DisableBehaviorMonitoring },
+        m={ SELECT "PrefIOAVDisabled" AS Check, "MpPreference DisableIOAVProtection is set" AS Detail
+            FROM MpPref WHERE DisableIOAVProtection },
+        n={ SELECT "ExcessiveExclusions" AS Check,
+                   format(format="%v exclusion entries configured",
+                          args=len(list=ExclusionPath) + len(list=ExclusionProcess) + len(list=ExclusionExtension)) AS Detail
+            FROM MpPref
+            WHERE len(list=ExclusionPath) + len(list=ExclusionProcess) + len(list=ExclusionExtension) > MaxExclusions },
+        o={ SELECT "ServiceNotRunning:" + Name AS Check,
+                   format(format="State=%v StartMode=%v", args=[State, StartMode]) AS Detail
+            FROM ServiceState WHERE State != "Running" OR StartMode =~ "Disabled" },
+        p={ SELECT "ProcessMissing:" + ProcessName AS Check,
+                   "Core Defender process is not running" AS Detail
+            FROM MissingProcs },
+        q={ SELECT "PolicyOverride:" + Name AS Check,
+                   format(format="%v = %v", args=[Name, Value]) AS Detail
+            FROM PolicyKeys
+            WHERE (Name =~ "Disable" AND Value = 1)
+               OR (Name = "TamperProtection" AND Value != 5) })
+
+      SELECT len(list=Issues) = 0 AS Healthy,
+             Issues.Check AS Issues,
+             Issues AS IssueDetail,
+             if(condition=RunPowershellCrossCheck,
+                then={
+                  SELECT Stdout FROM execve(argv=[
+                    "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    "Get-MpComputerStatus | ConvertTo-Json -Compress"], length=1000000)
+                }) AS PowershellCrossCheck,
+             now() AS Timestamp
+      FROM scope()
+
+  - name: Detail
+    query: |
+      SELECT * FROM chain(
+        status={ SELECT "ComputerStatus" AS Area, "RealTimeProtectionEnabled" AS Item,
+                        RealTimeProtectionEnabled AS Value FROM MpStatus },
+        status2={ SELECT "ComputerStatus" AS Area, "IsTamperProtected" AS Item,
+                         IsTamperProtected AS Value FROM MpStatus },
+        status3={ SELECT "ComputerStatus" AS Area, "AMRunningMode" AS Item,
+                         AMRunningMode AS Value FROM MpStatus },
+        status4={ SELECT "ComputerStatus" AS Area, "AntivirusSignatureAge" AS Item,
+                         AntivirusSignatureAge AS Value FROM MpStatus },
+        status5={ SELECT "ComputerStatus" AS Area, "BehaviorMonitorEnabled" AS Item,
+                         BehaviorMonitorEnabled AS Value FROM MpStatus },
+        svc={ SELECT "Service" AS Area, Name AS Item,
+                     format(format="State=%v StartMode=%v", args=[State, StartMode]) AS Value
+              FROM ServiceState },
+        proc={ SELECT "ProcessMissing" AS Area, ProcessName AS Item, FALSE AS Value
+               FROM MissingProcs },
+        policy={ SELECT "PolicyKey" AS Area, Name AS Item, Value FROM PolicyKeys })
+
+column_types:
+  - name: Timestamp
+    type: timestamp
