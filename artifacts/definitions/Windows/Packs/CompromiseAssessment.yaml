@@ -48,6 +48,10 @@ parameters:
     description: Upload located credential files (e.g. ~/.ssh/known_hosts).
   - name: Verify
     type: bool
+  - name: Redact
+    type: bool
+    default: Y
+    description: Redact recovered secrets to first-3 + *** + last-3.
   - name: SecretScanPaths
     default: 'C:/Users'
 
@@ -82,4 +86,5 @@ sources:
     query: |
       SELECT * FROM Artifact.Generic.Detection.SecretScanner(
         ScanPaths=SecretScanPaths,
-        Verify=Verify)
+        Verify=Verify,
+        Redact=Redact)
