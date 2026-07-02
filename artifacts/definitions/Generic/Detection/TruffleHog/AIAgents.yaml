@@ -150,11 +150,11 @@ sources:
       -- Run TruffleHog over all targets in one pass. NOTE:
       -- --no-verification means candidate secrets are never checked
       -- against the live service.
+      LET CmdLine <= (Binary[0].NewPath, 'filesystem', '--json',
+                      '--no-verification', '--no-update') + Targets.Path
+
       LET Findings = SELECT parse_json(data=Stdout) AS Finding
-        FROM execve(
-            argv=[Binary[0].NewPath, 'filesystem', '--json',
-                  '--no-verification', '--no-update'] + Targets.Path,
-            sep="\n", length=4194304)
+        FROM execve(argv=CmdLine, sep="\n", length=4194304)
         WHERE Stdout =~ '"DetectorName"'
 
       SELECT * FROM if(condition= Targets AND Binary,
