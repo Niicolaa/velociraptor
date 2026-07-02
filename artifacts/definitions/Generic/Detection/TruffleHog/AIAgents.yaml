@@ -1,0 +1,183 @@
+name: Generic.Detection.TruffleHog.AIAgents
+description: |
+  Scans the local configuration, state and history directories of AI
+  coding assistants/agents for leaked secrets using TruffleHog.
+
+  The following locations are targeted by default (for every user
+  profile found on the endpoint):
+
+  * `.kiro` - AWS Kiro
+  * `.claude` - Claude Code
+  * `.cursor` - Cursor
+  * `.copilot` - GitHub Copilot CLI
+  * `.codex` - OpenAI Codex CLI
+  * GitHub Copilot chat history stored by VS Code
+    (`User/workspaceStorage/*/chatSessions`,
+    `User/workspaceStorage/*/chatEditingSessions` and
+    `User/globalStorage/emptyWindowChatSessions`)
+  * `github-copilot` configuration directories (contain OAuth tokens)
+
+  Additional or alternative locations can be supplied via the
+  `TargetGlobs` parameter.
+
+  IMPORTANT - no live verification: TruffleHog is always invoked with
+  `--no-verification` so candidate secrets are NEVER sent to the real
+  service (AWS, GitHub, Slack, ...) for validation. It is also run
+  with `--no-update` so the binary does not try to update itself.
+
+  IMPORTANT - masked output: the raw secret is never written into the
+  collection results. Each finding only contains:
+
+  * `MaskedSecret` - the first and last `MaskShowChars` characters
+    (default 3) with the middle replaced by `...`. Secrets that are
+    too short to be safely previewed (less than 4 x `MaskShowChars`
+    characters) are fully masked as `********`.
+  * `SecretLength` and `SecretSHA256` - allow deduplication and
+    out-of-band confirmation of a suspected value without ever
+    exposing the secret itself.
+
+  NOTE: This artifact deploys the official TruffleHog release from
+  GitHub. The tools are marked `serve_locally` so the endpoint fetches
+  the binary from the Velociraptor server rather than the internet.
+
+reference:
+  - https://github.com/trufflesecurity/trufflehog
+
+type: CLIENT
+
+tools:
+  - name: TruffleHogWindowsAmd64
+    github_project: trufflesecurity/trufflehog
+    github_asset_regex: windows_amd64\.tar\.gz$
+    serve_locally: true
+  - name: TruffleHogLinuxAmd64
+    github_project: trufflesecurity/trufflehog
+    github_asset_regex: linux_amd64\.tar\.gz$
+    serve_locally: true
+  - name: TruffleHogLinuxArm64
+    github_project: trufflesecurity/trufflehog
+    github_asset_regex: linux_arm64\.tar\.gz$
+    serve_locally: true
+  - name: TruffleHogDarwinAmd64
+    github_project: trufflesecurity/trufflehog
+    github_asset_regex: darwin_amd64\.tar\.gz$
+    serve_locally: true
+  - name: TruffleHogDarwinArm64
+    github_project: trufflesecurity/trufflehog
+    github_asset_regex: darwin_arm64\.tar\.gz$
+    serve_locally: true
+
+precondition: SELECT OS FROM info() WHERE OS =~ 'windows|linux|darwin'
+
+parameters:
+  - name: TargetGlobs
+    type: csv
+    description: |
+      Globs of AI agent directories to scan. Matches from all globs
+      are passed to TruffleHog, so non-existent paths are simply
+      ignored - the default list covers Windows, Linux and macOS.
+    default: |
+      Glob
+      "C:/Users/*/.{kiro,claude,cursor,copilot,codex}"
+      "C:/Users/*/AppData/Roaming/Code*/User/workspaceStorage/*/chat{Sessions,EditingSessions}"
+      "C:/Users/*/AppData/Roaming/Code*/User/globalStorage/emptyWindowChatSessions"
+      "C:/Users/*/AppData/Local/github-copilot"
+      "/home/*/.{kiro,claude,cursor,copilot,codex}"
+      "/root/.{kiro,claude,cursor,copilot,codex}"
+      "/home/*/.config/Code*/User/workspaceStorage/*/chat{Sessions,EditingSessions}"
+      "/home/*/.config/Code*/User/globalStorage/emptyWindowChatSessions"
+      "/home/*/.config/github-copilot"
+      "/root/.config/github-copilot"
+      "/Users/*/.{kiro,claude,cursor,copilot,codex}"
+      "/Users/*/Library/Application Support/Code*/User/workspaceStorage/*/chat{Sessions,EditingSessions}"
+      "/Users/*/Library/Application Support/Code*/User/globalStorage/emptyWindowChatSessions"
+      "/Users/*/.config/github-copilot"
+
+  - name: MaskShowChars
+    type: int
+    default: 3
+    description: |
+      Number of characters to reveal at the start and at the end of
+      each detected secret. Secrets shorter than 4 x this value are
+      fully masked.
+
+implied_permissions:
+  - EXECVE
+  - FILESYSTEM_WRITE
+
+resources:
+  timeout: 3600
+
+sources:
+  - query: |
+      -- Pick the TruffleHog build matching this endpoint.
+      LET OSInfo <= SELECT OS, Architecture FROM info()
+
+      LET ToolName <= if(condition= OSInfo[0].OS = 'windows',
+            then= 'TruffleHogWindowsAmd64',
+            else= if(condition= OSInfo[0].OS = 'darwin',
+                then= if(condition= OSInfo[0].Architecture =~ 'arm|aarch',
+                    then= 'TruffleHogDarwinArm64',
+                    else= 'TruffleHogDarwinAmd64'),
+                else= if(condition= OSInfo[0].Architecture =~ 'arm|aarch',
+                    then= 'TruffleHogLinuxArm64',
+                    else= 'TruffleHogLinuxAmd64')))
+
+      -- Fetch the release tarball and unpack the trufflehog binary
+      -- into a temporary directory that is removed after the query.
+      LET Tarball <= SELECT OSPath FROM Artifact.Generic.Utils.FetchBinary(
+            ToolName=ToolName, IsExecutable=FALSE)
+
+      LET BinDir <= tempdir()
+
+      LET Binary <= SELECT NewPath FROM unzip(
+            filename=Tarball[0].OSPath,
+            filename_filter='trufflehog(\.exe)?$',
+            output_directory=BinDir,
+            type='tgz')
+
+      -- Resolve the AI agent directories that actually exist here.
+      LET Targets <= SELECT OSPath.String AS Path
+        FROM glob(globs=TargetGlobs.Glob)
+
+      -- Only ever emit a masked version of the secret.
+      LET MaskSecret(secret) = if(
+            condition= len(list=secret) >= 4 * MaskShowChars,
+            then= substr(str=secret, start=0, end=MaskShowChars) + '...' +
+                  substr(str=secret, start=len(list=secret) - MaskShowChars),
+            else= '********')
+
+      -- Run TruffleHog over all targets in one pass. NOTE:
+      -- --no-verification means candidate secrets are never checked
+      -- against the live service.
+      LET Findings = SELECT parse_json(data=Stdout) AS Finding
+        FROM execve(
+            argv=[Binary[0].NewPath, 'filesystem', '--json',
+                  '--no-verification', '--no-update'] + Targets.Path,
+            sep="\n", length=4194304)
+        WHERE Stdout =~ '"DetectorName"'
+
+      SELECT * FROM if(condition= Targets AND Binary,
+        then={
+          SELECT
+            Finding.SourceMetadata.Data.Filesystem.file AS File,
+            Finding.SourceMetadata.Data.Filesystem.line AS Line,
+            Finding.DetectorName AS Detector,
+            Finding.DetectorDescription AS DetectorDescription,
+            Finding.DecoderName AS Decoder,
+            MaskSecret(secret=Finding.Raw) AS MaskedSecret,
+            len(list=Finding.Raw) AS SecretLength,
+            hash(path=Finding.Raw, accessor='data').SHA256 AS SecretSHA256,
+            Finding.ExtraData AS ExtraData
+          FROM Findings
+        })
+
+    notebook:
+      - type: vql_suggestion
+        name: Findings by detector
+        template: |
+          SELECT Detector,
+                 count() AS Hits,
+                 enumerate(items=File) AS Files
+          FROM source(artifact="Generic.Detection.TruffleHog.AIAgents")
+          GROUP BY Detector
